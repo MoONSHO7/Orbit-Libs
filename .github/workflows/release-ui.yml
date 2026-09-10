@@ -1,0 +1,25 @@
+name: Release LibOrbitUI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - LibOrbitUI/LibOrbitUI-1.0/**
+      - '!LibOrbitUI/LibOrbitUI-1.0/**/README.md'
+      - LibOrbitUI/.pkgmeta
+      - LibOrbitUI/LICENSE
+      - .github/workflows/release-ui.yml
+      - .github/workflows/release-library.yml
+      - .scripts/release-library.py
+      - .gitattributes
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/release-library.yml
+    with:
+      library: LibOrbitUI

@@ -1,0 +1,25 @@
+name: Release LibOrbitColorPicker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - LibOrbitColorPicker/LibOrbitColorPicker-1.0/**
+      - '!LibOrbitColorPicker/LibOrbitColorPicker-1.0/**/README.md'
+      - LibOrbitColorPicker/.pkgmeta
+      - LibOrbitColorPicker/LICENSE
+      - .github/workflows/release-picker.yml
+      - .github/workflows/release-library.yml
+      - .scripts/release-library.py
+      - .gitattributes
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/release-library.yml
+    with:
+      library: LibOrbitColorPicker

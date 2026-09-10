@@ -1,0 +1,89 @@
+name: Package and publish library
+
+on:
+  workflow_call:
+    inputs:
+      library:
+        required: true
+        type: string
+    secrets:
+      CURSE_API_KEY:
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: library-release-${{ inputs.library }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+      LIBRARY: ${{ inputs.library }}
+    steps:
+      - name: Check out source and tags
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install validation dependencies
+        run: python -m pip install lupa==2.8 PyYAML==6.0.2
+
+      - name: Check Glow upload credential
+        if: inputs.library == 'LibOrbitGlow'
+        env:
+          CF_API_KEY: ${{ secrets.CURSE_API_KEY }}
+        run: test -n "$CF_API_KEY" || { echo 'CURSE_API_KEY is required for Glow releases.' >&2; exit 1; }
+
+      - name: Prepare committed library snapshot
+        id: prepare
+        run: |
+          echo "WORK=$RUNNER_TEMP/orbit-library-$LIBRARY" >> "$GITHUB_ENV"
+          python .scripts/release-library.py prepare "$LIBRARY" --work "$RUNNER_TEMP/orbit-library-$LIBRARY"
+
+      - name: Check out pinned packager
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: BigWigsMods/packager
+          ref: 6d50adb6e8517eefef63f4afb16a6518166a6b28 # v2.5.1
+          path: .packager
+          persist-credentials: false
+
+      - name: Build without publishing
+        working-directory: ${{ steps.prepare.outputs.stage }}
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          CURSE_PROJECT: ${{ steps.prepare.outputs.curse_project }}
+        run: |
+          env GITHUB_EVENT_NAME=workflow_dispatch GITHUB_REF="refs/tags/$VERSION" GITHUB_REF_NAME="$VERSION" \
+            GITHUB_OAUTH= CF_API_KEY= bash "$GITHUB_WORKSPACE/.packager/release.sh" \
+            -t "$WORK/stage" -r "$WORK/release" -u -d -p "$CURSE_PROJECT" -w 0 -a 0
+
+      - name: Validate runtime package
+        run: python .scripts/release-library.py verify "$LIBRARY" --work "$WORK"
+
+      - name: Reserve exact-commit draft and attach verified assets
+        id: reserve
+        run: python .scripts/release-library.py reserve "$LIBRARY" --work "$WORK"
+
+      - name: Upload validated Glow ZIP to CurseForge
+        if: inputs.library == 'LibOrbitGlow' && steps.reserve.outputs.published != 'true'
+        env:
+          CF_API_KEY: ${{ secrets.CURSE_API_KEY }}
+        run: python .scripts/release-library.py curse-upload "$LIBRARY" --work "$WORK"
+
+      - name: Publish and verify GitHub release
+        if: steps.reserve.outputs.published != 'true'
+        run: python .scripts/release-library.py finish "$LIBRARY" --work "$WORK"

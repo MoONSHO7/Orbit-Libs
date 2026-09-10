@@ -1,0 +1,27 @@
+name: Release LibOrbitGlow
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - LibOrbitGlow/LibOrbitGlow-1.0/**
+      - '!LibOrbitGlow/LibOrbitGlow-1.0/**/README.md'
+      - LibOrbitGlow/.pkgmeta
+      - LibOrbitGlow/LICENSE
+      - .github/workflows/release-glow.yml
+      - .github/workflows/release-library.yml
+      - .scripts/release-library.py
+      - .gitattributes
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/release-library.yml
+    with:
+      library: LibOrbitGlow
+    secrets:
+      CURSE_API_KEY: ${{ secrets.CURSE_API_KEY }}

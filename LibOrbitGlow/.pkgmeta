@@ -22,6 +22,7 @@ ignore:
   - .scripts
   - .gitattributes
   - LICENSE
+  - README.md
   - LibOrbitGlow-1.0/LibStub/.pkgmeta
   - LibOrbitGlow-1.0/LibStub/LibStub.toc
   - LibOrbitGlow-1.0/LibStub/tests
