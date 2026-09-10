@@ -229,7 +229,22 @@ def api(path, *args, missing=False):
 
 
 def release(plan, missing=False):
-    return api("/releases/tags/" + quote(plan["tag"], safe=""), missing=missing)
+    published = api("/releases/tags/" + quote(plan["tag"], safe=""), missing=True)
+    if published:
+        return published
+    page = 1
+    while True:
+        releases = api(f"/releases?per_page=100&page={page}")
+        matches = [entry for entry in releases if entry["tag_name"] == plan["tag"]]
+        if len(matches) > 1:
+            raise ValueError("Multiple GitHub releases use this library tag")
+        if matches:
+            return matches[0]
+        if len(releases) < 100:
+            if missing:
+                return None
+            raise ValueError("GitHub release was not found: " + plan["tag"])
+        page += 1
 
 
 def tag_commit(plan):
