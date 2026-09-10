@@ -1,0 +1,1998 @@
+-- [ LibOrbitColorPicker-1.0 ]------------------------------------------------------------------------------------------
+local MAJOR, MINOR = "LibOrbitColorPicker-1.0", 10
+local lib = LibStub:NewLibrary(MAJOR, MINOR)
+if not lib then return end
+
+local GameTooltip
+
+-- [ CONSTANTS ]--------------------------------------------------------------------------------------------------------
+local PICKER_WIDTH = 350
+local PICKER_HEIGHT = 356
+local CONTENT_PADDING = 23
+local SV_SQUARE_SIZE = 128
+local SV_OFFSET_Y = -43
+local SV_THUMB_SIZE = 10
+local HUE_BAR_WIDTH = 32
+local HUE_SEGMENTS = 6
+local ALPHA_BAR_WIDTH = 32
+local RAIL_GAP = 20
+local BAR_HEIGHT = 128
+local BAR_THUMB_WIDTH = 48
+local BAR_THUMB_HEIGHT = 14
+-- Rail thumbs are wider than their rail, so the area insets by the overhang to sit in the shared content column.
+local BAR_THUMB_OVERHANG = (BAR_THUMB_WIDTH - HUE_BAR_WIDTH) / 2
+local SV_PADDING_LEFT = CONTENT_PADDING + BAR_THUMB_OVERHANG
+local TRACK_THROTTLE = 0.02
+local SWATCH_WIDTH = 44
+local SWATCH_HEIGHT = 28
+local SWATCH_BORDER = 2
+local SWATCH_GAP = 8
+local DESAT_CHECKBOX_SIZE = 18
+local HEX_BOX_WIDTH = 72
+local HEX_BOX_HEIGHT = 22
+local GRADIENT_BAR_HEIGHT = 24
+local GRADIENT_BAR_GAP = 16
+local PIN_CIRCLE_SIZE = 12
+local PIN_STEM_WIDTH = 2
+local PIN_STEM_HEIGHT = 14
+local DRAG_CURSOR_SIZE = 24
+
+local NOTCH_HEIGHT = 6
+local NOTCH_WIDTH = 1
+local NOTCH_GAP = 2
+local CLASS_SWATCH_GAP = 8
+local TITLE_OFFSET_Y = -15
+local FOOTER_TOP_PADDING = 8
+local FOOTER_BOTTOM_PADDING = 4
+local FOOTER_BUTTON_HEIGHT = 20
+local FOOTER_DIVIDER_OFFSET = 6
+local FOOTER_HEIGHT = FOOTER_TOP_PADDING + FOOTER_BUTTON_HEIGHT + FOOTER_BOTTOM_PADDING
+local FOOTER_MARGIN_BOTTOM = 8
+
+local BAR_FRAME_LEVEL = 100
+local DRAG_FRAME_LEVEL = 1000
+local PIN_HANDLE_FRAME_LEVEL = 100
+local GHOST_PIN_ALPHA = 0.6
+local REFRESH_DELAY = 0.05
+local NOTCH_POSITION_DELAY = 0.1
+local INFO_BUTTON_SIZE = 32
+local PIN_NUDGE_STEP = 0.01
+local PIN_NUDGE_FINE = 0.001
+local PIN_TOOLTIP_THROTTLE = 0.03
+local WHITE_TEXTURE = 130871
+local LIB_PATH = debugstack(1, 1, 0):match("Interface.*LibOrbitColorPicker%-1%.0[\\/]")
+local CHECKERBOARD_TEXTURE = LIB_PATH .. "checkerboard.tga"
+local THUMB_TEXTURE = 130756
+local DEFAULT_COLOR = { r = 1, g = 1, b = 1, a = 1 }
+
+local RECENT_SWATCH_SIZE = 31
+local RECENT_SWATCH_SPACING = 8
+local RECENT_COLORS_MAX = 8
+local RECENT_ALPHA_EPSILON = 0.05
+local RECENT_COLORS_LEVEL_OFFSET = 50
+local PINS_CONTAINER_LEVEL = 50
+
+-- Forward-declared; populated by the locale block below. UI strings reach this via upvalue capture.
+local CL
+
+-- [ MODULE STATE ]-----------------------------------------------------------------------------------------------------
+lib.recentColors = lib.recentColors or {}
+lib.pins = lib.pins or {}
+lib.colorCurve = nil
+lib.callback = nil
+lib.wasCancelled = false
+lib.snapshotPins = nil
+lib.snapshotRecent = nil
+lib.snapshotDesaturated = false
+lib.sessionId = lib.sessionId or 0
+lib.multiPinMode = false
+lib.desaturated = false
+lib.hasDesaturation = false
+lib.suppressCallback = false
+
+lib.ui = lib.ui or {}
+lib.drag = lib.drag or {}
+lib.info = lib.info or { markers = {} }
+
+-- [ UTILITY ]----------------------------------------------------------------------------------------------------------
+local function SortPinsByPosition(a, b) return a.position < b.position end
+local function ClampPosition(x) return math.max(0, math.min(1, x)) end
+
+local function HideTooltip()
+    if lib.tooltipHide then lib.tooltipHide() end
+end
+
+local HUE_STOPS = { { 1, 0, 0 }, { 1, 1, 0 }, { 0, 1, 0 }, { 0, 1, 1 }, { 0, 0, 1 }, { 1, 0, 1 }, { 1, 0, 0 } }
+
+-- Own conversion rather than C_ColorUtil: its achromatic contract returns hue -1, which a hue rail must not inherit.
+local function HSVToRGB(h, s, v)
+    local sector = h * HUE_SEGMENTS
+    local index = math.min(math.floor(sector), HUE_SEGMENTS - 1)
+    local t = sector - index
+    local from, to = HUE_STOPS[index + 1], HUE_STOPS[index + 2]
+    local r = ((from[1] + (to[1] - from[1]) * t) - 1) * s + 1
+    local g = ((from[2] + (to[2] - from[2]) * t) - 1) * s + 1
+    local b = ((from[3] + (to[3] - from[3]) * t) - 1) * s + 1
+    return r * v, g * v, b * v
+end
+
+local function RGBToHSV(r, g, b)
+    local maxC = math.max(r, g, b)
+    local delta = maxC - math.min(r, g, b)
+    local h = 0
+    if delta > 0 then
+        if maxC == r then h = ((g - b) / delta) % HUE_SEGMENTS
+        elseif maxC == g then h = (b - r) / delta + 2
+        else h = (r - g) / delta + 4 end
+        h = h / HUE_SEGMENTS
+    end
+    return h, maxC > 0 and delta / maxC or 0, maxC
+end
+
+local function GetCurrentClassColor()
+    if lib.classColor then return lib.classColor() end
+    local _, class = UnitClass("player")
+    local color = not issecretvalue(class) and class and RAID_CLASS_COLORS[class]
+    return color and { r = color.r, g = color.g, b = color.b, a = 1 } or DEFAULT_COLOR
+end
+
+local function NormalizeColor(c)
+    if not c then return { r = 1, g = 1, b = 1, a = 1 } end
+    if c.GetRGBA then
+        local r, g, b, a = c:GetRGBA()
+        return { r = r, g = g, b = b, a = a }
+    end
+    return { r = c.r or c[1] or 1, g = c.g or c[2] or 1, b = c.b or c[3] or 1, a = c.a or c[4] or 1 }
+end
+
+local function ResolveClassColorPin(pin)
+    if pin.type == "class" then return GetCurrentClassColor() end
+    return pin.color
+end
+
+local function ToColorMixin(c) return CreateColor(c.r, c.g, c.b, c.a or 1) end
+
+local function SerializePins(pins)
+    local result = {}
+    for _, pin in ipairs(pins) do
+        local resolved = ResolveClassColorPin(pin)
+        local entry = { position = pin.position, color = { r = resolved.r, g = resolved.g, b = resolved.b, a = resolved.a or 1 } }
+        if pin.type then entry.type = pin.type end
+        result[#result + 1] = entry
+    end
+    return result
+end
+
+local function DeepCopyPins(pins)
+    local copy = {}
+    for _, pin in ipairs(pins) do
+        local snap = { position = pin.position, color = { r = pin.color.r, g = pin.color.g, b = pin.color.b, a = pin.color.a } }
+        if pin.type then snap.type = pin.type end
+        copy[#copy + 1] = snap
+    end
+    return copy
+end
+
+local function GetSortedPins()
+    local sorted = {}
+    for _, pin in ipairs(lib.pins) do sorted[#sorted + 1] = pin end
+    table.sort(sorted, SortPinsByPosition)
+    return sorted
+end
+
+local function ColorToHex(r, g, b)
+    return string.format("%02X%02X%02X", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5))
+end
+
+local function HexToColor(hex)
+    hex = hex:gsub("#", "")
+    if #hex ~= 6 then return nil end
+    local r = tonumber(hex:sub(1, 2), 16)
+    local g = tonumber(hex:sub(3, 4), 16)
+    local b = tonumber(hex:sub(5, 6), 16)
+    if not r or not g or not b then return nil end
+    return r / 255, g / 255, b / 255
+end
+
+-- [ PIN VISUALS ]------------------------------------------------------------------------------------------------------
+local function CreatePinVisual(parent, alpha)
+    local frame = CreateFrame("Frame", nil, parent)
+    frame:SetSize(PIN_CIRCLE_SIZE + 4, PIN_STEM_HEIGHT + PIN_CIRCLE_SIZE)
+
+    frame.Stem = frame:CreateTexture(nil, "BACKGROUND")
+    frame.Stem:SetSize(PIN_STEM_WIDTH, PIN_STEM_HEIGHT)
+    frame.Stem:SetPoint("BOTTOM", frame, "BOTTOM", 0, 0)
+    frame.Stem:SetColorTexture(1, 1, 1, alpha or 1)
+
+    frame.CircleBorder = frame:CreateTexture(nil, "BORDER")
+    frame.CircleBorder:SetSize(PIN_CIRCLE_SIZE + 2, PIN_CIRCLE_SIZE + 2)
+    frame.CircleBorder:SetPoint("BOTTOM", frame.Stem, "TOP", 0, -1)
+    frame.CircleBorder:SetColorTexture(0, 0, 0, alpha or 1)
+
+    frame.Circle = frame:CreateTexture(nil, "ARTWORK")
+    frame.Circle:SetSize(PIN_CIRCLE_SIZE, PIN_CIRCLE_SIZE)
+    frame.Circle:SetPoint("CENTER", frame.CircleBorder, "CENTER", 0, 0)
+    frame.Circle:SetTexture(WHITE_TEXTURE)
+
+    if alpha and alpha < 1 then frame:SetAlpha(alpha) end
+    return frame
+end
+
+-- [ GRADIENT BAR MIXIN ]-----------------------------------------------------------------------------------------------
+-- Mixin is frozen at file end after all methods are added (12.0.5+ table.freeze).
+local GradientBarMixin = {}
+
+function GradientBarMixin:OnLoad()
+    self.segments = {}
+    self.pinHandles = {}
+end
+
+function GradientBarMixin:GetOrCreateSegment(index)
+    if self.segments[index] then return self.segments[index] end
+    local seg = self.SegmentContainer:CreateTexture(nil, "ARTWORK")
+    seg:SetTexture(WHITE_TEXTURE)
+    seg:SetHeight(self.SegmentContainer:GetHeight())
+    self.segments[index] = seg
+    return seg
+end
+
+function GradientBarMixin:HideUnusedSegments(fromIndex)
+    for i = fromIndex, #self.segments do
+        if self.segments[i] then self.segments[i]:Hide() end
+    end
+end
+
+function GradientBarMixin:Refresh()
+    local pins = GetSortedPins()
+    local barWidth, barHeight = self.SegmentContainer:GetWidth(), self.SegmentContainer:GetHeight()
+    if barWidth <= 0 or barHeight <= 0 then return end
+
+    self.SolidTexture:Hide()
+    lib:UpdateApplyButtonState()
+
+    if #pins == 0 then
+        self:HideUnusedSegments(1)
+        self:RefreshPinHandles()
+        return
+    end
+
+    if #pins == 1 then
+        self:HideUnusedSegments(1)
+        local c = ResolveClassColorPin(pins[1])
+        self.SolidTexture:SetColorTexture(c.r, c.g, c.b, c.a or 1)
+        self.SolidTexture:Show()
+        self:RefreshPinHandles()
+        return
+    end
+
+    local segIndex = 0
+
+    if pins[1].position > 0 then
+        segIndex = segIndex + 1
+        local seg = self:GetOrCreateSegment(segIndex)
+        local c = ToColorMixin(ResolveClassColorPin(pins[1]))
+        seg:ClearAllPoints()
+        seg:SetPoint("LEFT", self.SegmentContainer, "LEFT", 0, 0)
+        seg:SetSize(pins[1].position * barWidth, barHeight)
+        seg:SetGradient("HORIZONTAL", c, c)
+        seg:Show()
+    end
+
+    for i = 1, #pins - 1 do
+        segIndex = segIndex + 1
+        local seg = self:GetOrCreateSegment(segIndex)
+        local left, right = pins[i], pins[i + 1]
+        local leftX, rightX = left.position * barWidth, right.position * barWidth
+        seg:ClearAllPoints()
+        seg:SetPoint("LEFT", self.SegmentContainer, "LEFT", leftX, 0)
+        seg:SetSize(math.max(1, rightX - leftX), barHeight)
+        seg:SetGradient("HORIZONTAL", ToColorMixin(ResolveClassColorPin(left)), ToColorMixin(ResolveClassColorPin(right)))
+        seg:Show()
+    end
+
+    if pins[#pins].position < 1 then
+        segIndex = segIndex + 1
+        local seg = self:GetOrCreateSegment(segIndex)
+        local c = ToColorMixin(ResolveClassColorPin(pins[#pins]))
+        local startX = pins[#pins].position * barWidth
+        seg:ClearAllPoints()
+        seg:SetPoint("LEFT", self.SegmentContainer, "LEFT", startX, 0)
+        seg:SetSize(barWidth - startX, barHeight)
+        seg:SetGradient("HORIZONTAL", c, c)
+        seg:Show()
+    end
+
+    self:HideUnusedSegments(segIndex + 1)
+    self:RefreshPinHandles()
+end
+
+function GradientBarMixin:RefreshPinHandles()
+    local pins = GetSortedPins()
+    local barWidth = self.SegmentContainer:GetWidth()
+    if barWidth <= 0 then return end
+
+    for _, handle in ipairs(self.pinHandles) do handle:Hide() end
+
+    for i, pin in ipairs(pins) do
+        local handle = self.pinHandles[i] or lib:CreatePinHandle(self)
+        self.pinHandles[i] = handle
+        handle.pinData = pin
+        handle:ClearAllPoints()
+        handle:SetPoint("BOTTOM", self.SegmentContainer, "TOP", (pin.position - 0.5) * barWidth, 0)
+        local resolved = ResolveClassColorPin(pin)
+        handle.Circle:SetColorTexture(resolved.r, resolved.g, resolved.b, resolved.a or 1)
+        handle:SetFrameStrata("TOOLTIP")
+        handle:SetFrameLevel(PIN_HANDLE_FRAME_LEVEL)
+        -- Keyboard state lives per-handle (its own OnEnter/OnLeave); reused handles persist it.
+        handle:Show()
+    end
+end
+
+function GradientBarMixin:OnMouseUp(button)
+    if button == "RightButton" or not lib.drag.active then return end
+    lib:EndDrag()
+end
+
+function GradientBarMixin:OnEnter()
+    if lib.drag.active then
+        self.DropHighlight:Show()
+        lib:ShowGhostPin()
+    end
+end
+
+function GradientBarMixin:OnLeave()
+    self.DropHighlight:Hide()
+    lib:HideGhostPin()
+end
+
+-- [ PIN HANDLE ]-------------------------------------------------------------------------------------------------------
+function lib:CreatePinHandle(gradientBar)
+    local handle = CreateFrame("Button", nil, gradientBar.PinsContainer)
+    handle:SetSize(PIN_CIRCLE_SIZE + 4, PIN_STEM_HEIGHT + PIN_CIRCLE_SIZE)
+    handle:EnableMouse(true)
+    handle:SetMovable(true)
+    handle:RegisterForDrag("LeftButton")
+    handle:RegisterForClicks("RightButtonUp")
+
+    local visual = CreatePinVisual(handle, 1)
+    visual:SetAllPoints()
+    handle.Stem = visual.Stem
+    handle.CircleBorder = visual.CircleBorder
+    handle.Circle = visual.Circle
+
+    handle:SetScript("OnEnter", function(self)
+        if not lib:IsOpen() or not self.pinData then return end
+        -- Hover-armed keyboard stays off in combat: OnKeyDown's propagate-restore is protected there.
+        if not InCombatLockdown() then self:EnableKeyboard(true) end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(string.format(CL.POS_TT, self.pinData.position * 100))
+        GameTooltip:Show()
+    end)
+
+    handle:SetScript("OnLeave", function(self)
+        self:EnableKeyboard(false)
+        HideTooltip()
+    end)
+
+    handle:SetScript("OnHide", function(self)
+        self:EnableKeyboard(false)
+        self:SetScript("OnUpdate", nil)
+        self:StopMovingOrSizing()
+        self.dragSession = nil
+    end)
+
+    handle:SetScript("OnDragStart", function(self)
+        if not lib:IsOpen() or not lib.multiPinMode then return end
+        local sessionId = lib.sessionId
+        self.dragSession = sessionId
+        self:StartMoving()
+        self:SetFrameStrata("TOOLTIP")
+        self:SetClampedToScreen(true)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        self.tooltipThrottle = 0
+        self:SetScript("OnUpdate", function(self, elapsed)
+            if not lib:IsOpen() or lib.sessionId ~= sessionId or self.dragSession ~= sessionId then
+                self:SetScript("OnUpdate", nil)
+                return
+            end
+            self.tooltipThrottle = self.tooltipThrottle + elapsed
+            if self.tooltipThrottle < PIN_TOOLTIP_THROTTLE then return end
+            self.tooltipThrottle = 0
+            local handleX = self:GetCenter()
+            if not handleX then return end
+            local barLeft = gradientBar.SegmentContainer:GetLeft()
+            local barWidth = gradientBar.SegmentContainer:GetWidth()
+            local pct = ClampPosition((handleX - barLeft) / barWidth) * 100
+            GameTooltip:ClearLines()
+            GameTooltip:AddLine(string.format(CL.POS_TT, pct))
+            GameTooltip:Show()
+        end)
+    end)
+
+    handle:SetScript("OnDragStop", function(self)
+        self:SetScript("OnUpdate", nil)
+        self:StopMovingOrSizing()
+        local sessionId = self.dragSession
+        self.dragSession = nil
+        if not lib:IsOpen() or sessionId ~= lib.sessionId then return end
+        self:SetFrameStrata("TOOLTIP")
+        local handleX = self:GetCenter()
+        local barLeft = gradientBar.SegmentContainer:GetLeft()
+        local barWidth = gradientBar.SegmentContainer:GetWidth()
+        if self.pinData and handleX and barLeft and barWidth and barWidth > 0 then
+            self.pinData.position = ClampPosition((handleX - barLeft) / barWidth)
+        end
+        gradientBar:Refresh()
+        lib:UpdateCurve()
+        HideTooltip()
+    end)
+
+    handle:SetScript("OnClick", function(self, button)
+        if button == "RightButton" and self.pinData then lib:RemovePin(self.pinData) end
+    end)
+
+    handle:SetScript("OnKeyDown", function(self, key)
+        -- SetPropagateKeyboardInput is protected in combat; the lib closes itself on PLAYER_REGEN_DISABLED.
+        local inCombat = InCombatLockdown()
+        if not lib:IsOpen() or not lib.multiPinMode or not self.pinData then
+            if not inCombat then self:SetPropagateKeyboardInput(true) end
+            return
+        end
+        local step = IsShiftKeyDown() and PIN_NUDGE_FINE or PIN_NUDGE_STEP
+        if key == "LEFT" then
+            self.pinData.position = ClampPosition(self.pinData.position - step)
+        elseif key == "RIGHT" then
+            self.pinData.position = ClampPosition(self.pinData.position + step)
+        else
+            if not inCombat then self:SetPropagateKeyboardInput(true) end
+            return
+        end
+        if not inCombat then self:SetPropagateKeyboardInput(false) end
+        gradientBar:Refresh()
+        lib:UpdateCurve()
+        lib:UpdateApplyButtonState()
+        if GameTooltip:IsOwned(self) then
+            GameTooltip:ClearLines()
+            GameTooltip:AddLine(string.format(CL.POS_TT, self.pinData.position * 100))
+            GameTooltip:AddLine(CL.NUDGE_HINT, 0.5, 0.5, 0.5)
+            GameTooltip:Show()
+        end
+    end)
+
+    return handle
+end
+
+-- [ CLASS COLOR SWATCH ]-----------------------------------------------------------------------------------------------
+function lib:CreateClassColorSwatch()
+    if self.ui.classSwatch then return self.ui.classSwatch end
+
+    local frame = CreateFrame("Frame", nil, self.ui.frame, "BackdropTemplate")
+    frame:SetSize(SWATCH_WIDTH, SWATCH_HEIGHT)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetBackdrop({ bgFile = WHITE_TEXTURE, edgeFile = WHITE_TEXTURE, edgeSize = SWATCH_BORDER })
+    frame:SetBackdropBorderColor(0, 0, 0, 1)
+
+    frame.Label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    frame.Label:SetPoint("TOP", frame, "BOTTOM", 0, -2)
+    frame.Label:SetText(CL.CLASS_LBL)
+    frame.Label:SetTextColor(0.7, 0.7, 0.7, 1)
+
+    frame:SetScript("OnDragStart", function()
+        if not lib.multiPinMode and #lib.pins > 0 then return end
+        local c = GetCurrentClassColor()
+        lib:StartDrag(c.r, c.g, c.b, c.a, true)
+    end)
+
+    frame:SetScript("OnDragStop", function() lib:EndDrag() end)
+
+    self.ui.classSwatch = frame
+    self:UpdateClassColorSwatch()
+    return frame
+end
+
+-- [ DESATURATION CHECKBOX ]--------------------------------------------------------------------------------------------
+function lib:CreateDesaturationCheckbox()
+    if self.ui.desatCheckbox then return self.ui.desatCheckbox end
+    local cb = CreateFrame("CheckButton", nil, self.ui.frame, "UICheckButtonTemplate")
+    cb:SetSize(DESAT_CHECKBOX_SIZE, DESAT_CHECKBOX_SIZE)
+    cb.text:SetText("")
+    cb.Label = cb:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    cb.Label:SetPoint("TOP", cb, "BOTTOM", 0, -1)
+    cb.Label:SetText(CL.DESAT_LBL)
+    cb.Label:SetTextColor(0.7, 0.7, 0.7, 1)
+    cb:SetScript("OnClick", function(self)
+        lib.desaturated = self:GetChecked()
+        lib:UpdateCurve()
+    end)
+    cb:SetScript("OnEnter", function(self)
+        if not lib:IsOpen() then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(CL.DESAT_TT_TITLE, 1, 0.82, 0)
+        GameTooltip:AddLine(CL.DESAT_TT_TEXT, 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    cb:SetScript("OnLeave", HideTooltip)
+    self.ui.desatCheckbox = cb
+    return cb
+end
+
+function lib:UpdateClassColorSwatch()
+    if not self.ui.classSwatch then return end
+    local c = GetCurrentClassColor()
+    self.ui.classSwatch:SetBackdropColor(c.r, c.g, c.b, 1)
+end
+
+function lib:SetupEventFrame()
+    if self.ui.eventFrame then return end
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    f:RegisterEvent("PLAYER_REGEN_DISABLED")
+    f:RegisterEvent("PLAYER_REGEN_ENABLED")
+    f:SetScript("OnEvent", function(_, event)
+        if event == "PLAYER_REGEN_DISABLED" then
+            if lib:IsOpen() then
+                lib.wasCancelled = true
+                lib:CloseFrame()
+            end
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            if lib:IsOpen() then lib.ui.frame:EnableKeyboard(true) end
+        else
+            lib:UpdateClassColorSwatch()
+        end
+    end)
+    self.ui.eventFrame = f
+end
+
+-- [ DRAG SYSTEM ]------------------------------------------------------------------------------------------------------
+function lib:CreateDragTexture()
+    if self.drag.texture then return self.drag.texture end
+
+    local tex = CreateFrame("Frame", nil, UIParent)
+    tex:SetSize(DRAG_CURSOR_SIZE, DRAG_CURSOR_SIZE)
+    tex:SetFrameStrata("TOOLTIP")
+    tex:SetFrameLevel(DRAG_FRAME_LEVEL)
+
+    tex.Border = tex:CreateTexture(nil, "BORDER")
+    tex.Border:SetAllPoints()
+    tex.Border:SetColorTexture(0, 0, 0, 1)
+
+    tex.Color = tex:CreateTexture(nil, "ARTWORK")
+    tex.Color:SetPoint("TOPLEFT", 2, -2)
+    tex.Color:SetPoint("BOTTOMRIGHT", -2, 2)
+    tex.Color:SetTexture(WHITE_TEXTURE)
+    tex:Hide()
+
+    tex:SetScript("OnUpdate", function(self)
+        if not lib.drag.active then self:Hide() return end
+        local x, y = GetCursorPosition()
+        local scale = self:GetEffectiveScale()
+        self:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
+
+        if lib.ui.gradientBar and lib.ui.gradientBar:IsMouseOver() then
+            lib.ui.gradientBar.DropHighlight:Show()
+            lib:ShowGhostPin()
+        else
+            if lib.ui.gradientBar then lib.ui.gradientBar.DropHighlight:Hide() end
+            lib:HideGhostPin()
+        end
+    end)
+
+    self.drag.texture = tex
+    return tex
+end
+
+function lib:StartDrag(r, g, b, a, isClassDrag)
+    if not self.multiPinMode and #self.pins > 0 then return end
+    self.drag.active = true
+    self.drag.color = { r = r, g = g, b = b, a = a or 1 }
+    self.drag.type = isClassDrag and "class" or nil
+    local tex = self:CreateDragTexture()
+    tex.Color:SetVertexColor(r, g, b, a or 1)
+    tex:Show()
+end
+
+function lib:EndDrag()
+    if not self.drag.active then return end
+    self.drag.active = false
+    if self.drag.texture then self.drag.texture:Hide() end
+    self:HideGhostPin()
+    if self.ui.gradientBar then self.ui.gradientBar.DropHighlight:Hide() end
+
+    if self.ui.gradientBar and self.ui.gradientBar:IsMouseOver() and self.drag.color then
+        local x = GetCursorPosition() / self.ui.gradientBar:GetEffectiveScale()
+        local barLeft = self.ui.gradientBar.SegmentContainer:GetLeft()
+        local barWidth = self.ui.gradientBar.SegmentContainer:GetWidth()
+        self:AddPin(ClampPosition((x - barLeft) / barWidth), self.drag.color, self.drag.type)
+    end
+    self.drag.color = nil
+    self.drag.type = nil
+end
+
+-- [ GHOST PIN ]--------------------------------------------------------------------------------------------------------
+function lib:ShowGhostPin()
+    if not self.ui.gradientBar or not self.drag.color then return end
+
+    if not self.ui.ghostPin then
+        self.ui.ghostPin = CreatePinVisual(self.ui.gradientBar.PinsContainer, GHOST_PIN_ALPHA)
+    end
+
+    local x = GetCursorPosition() / self.ui.gradientBar:GetEffectiveScale()
+    local barLeft = self.ui.gradientBar.SegmentContainer:GetLeft()
+    local barWidth = self.ui.gradientBar.SegmentContainer:GetWidth()
+    local position = ClampPosition((x - barLeft) / barWidth)
+    self.ui.ghostPin:ClearAllPoints()
+    self.ui.ghostPin:SetPoint("BOTTOM", self.ui.gradientBar.SegmentContainer, "TOP", (position - 0.5) * barWidth, 0)
+    self.ui.ghostPin.Circle:SetVertexColor(self.drag.color.r, self.drag.color.g, self.drag.color.b, self.drag.color.a or 1)
+    self.ui.ghostPin:Show()
+end
+
+function lib:HideGhostPin()
+    if self.ui.ghostPin then self.ui.ghostPin:Hide() end
+end
+
+function lib:UpdateApplyButtonState()
+    if not self.ui.applyButton then return end
+    self.ui.applyButton:SetEnabled(true)
+    self.ui.applyButton:SetText((self.pins and #self.pins > 0) and CL.APPLY_BTN or CL.CLEAR_BTN)
+end
+
+-- [ PIN MANAGEMENT ]---------------------------------------------------------------------------------------------------
+function lib:SyncColorSelectToPin(pin)
+    local cs = self.ui.colorSelect
+    if self.multiPinMode or not cs or not pin then return end
+    local c = ResolveClassColorPin(pin)
+    local wasSuppressed = self.suppressCallback
+    self.suppressCallback = true
+    cs:SetColorRGBA(c.r, c.g, c.b, c.a or 1)
+    self.suppressCallback = wasSuppressed
+end
+
+function lib:AddPin(position, color, pinType)
+    local pin = { position = ClampPosition(position), color = NormalizeColor(color) }
+    if pinType then pin.type = pinType end
+    self.pins[#self.pins + 1] = pin
+    self:AddRecentColor(pin)
+    self:UpdateRecentColors()
+    -- Single-color commit re-reads the wheel, so a dropped pin must push its color there or the commit clobbers it.
+    self:SyncColorSelectToPin(pin)
+    self:UpdateCurve()
+    if self.ui.gradientBar then self.ui.gradientBar:Refresh() end
+end
+
+function lib:AddClassColorPin(position)
+    local pin = { position = ClampPosition(position), color = GetCurrentClassColor(), type = "class" }
+    self.pins[#self.pins + 1] = pin
+    self:SyncColorSelectToPin(pin)
+    self:UpdateCurve()
+    if self.ui.gradientBar then self.ui.gradientBar:Refresh() end
+end
+
+function lib:RemovePin(pinToRemove)
+    for i, pin in ipairs(self.pins) do
+        if pin == pinToRemove then
+            table.remove(self.pins, i)
+            break
+        end
+    end
+    self:UpdateCurve()
+    if self.ui.gradientBar then self.ui.gradientBar:Refresh() end
+end
+
+function lib:ClearPins()
+    wipe(self.pins)
+    self:UpdateCurve()
+    if self.ui.gradientBar then self.ui.gradientBar:Refresh() end
+end
+
+-- [ COLORCURVE INTEGRATION ]-------------------------------------------------------------------------------------------
+function lib:BuildColorCurve(pins)
+    local sorted = pins and { unpack(pins) } or GetSortedPins()
+    if pins then table.sort(sorted, SortPinsByPosition) end
+    local curve = C_CurveUtil.CreateColorCurve()
+    for _, pin in ipairs(sorted) do
+        curve:AddPoint(pin.position, ToColorMixin(ResolveClassColorPin(pin)))
+    end
+    return curve
+end
+
+function lib:UpdateCurve()
+    self.colorCurve = self:BuildColorCurve()
+end
+
+function lib:GetColorCurve() return self.colorCurve end
+
+function lib:LoadFromCurve(curveData)
+    if not curveData then return end
+    wipe(self.pins)
+
+    if curveData.pins then
+        for _, pin in ipairs(curveData.pins) do
+            local newPin = { position = ClampPosition(pin.position or 0), color = NormalizeColor(pin.color) }
+            if pin.type then newPin.type = pin.type end
+            self.pins[#self.pins + 1] = newPin
+        end
+    elseif curveData.GetPoints then
+        for _, point in ipairs(curveData:GetPoints()) do
+            self.pins[#self.pins + 1] = { position = ClampPosition(point.x), color = NormalizeColor(point.y) }
+        end
+    end
+
+    self:UpdateCurve()
+    if self.ui.gradientBar then self.ui.gradientBar:Refresh() end
+end
+
+-- [ GRADIENT BAR CREATION ]--------------------------------------------------------------------------------------------
+function lib:CreateGradientBar()
+    if self.ui.gradientBar then return self.ui.gradientBar end
+
+    local bar = CreateFrame("Frame", nil, UIParent)
+    Mixin(bar, GradientBarMixin)
+    bar:SetHeight(GRADIENT_BAR_HEIGHT)
+    bar:SetFrameStrata("TOOLTIP")
+    bar:SetFrameLevel(BAR_FRAME_LEVEL)
+    bar:SetPoint("LEFT", self.ui.frame, "LEFT", CONTENT_PADDING, 0)
+    bar:SetPoint("RIGHT", self.ui.frame, "RIGHT", -CONTENT_PADDING, 0)
+    bar:SetPoint("BOTTOM", self.ui.footer, "TOP", 0, GRADIENT_BAR_GAP)
+
+    bar.SegmentContainer = CreateFrame("Frame", nil, bar)
+    bar.SegmentContainer:SetAllPoints()
+    bar.SegmentContainer:SetScript("OnSizeChanged", function(self, width, height)
+        if width > 0 and height > 0 then bar:Refresh() end
+    end)
+
+    bar.Checkerboard = bar.SegmentContainer:CreateTexture(nil, "BACKGROUND")
+    bar.Checkerboard:SetAllPoints()
+    bar.Checkerboard:SetTexture(CHECKERBOARD_TEXTURE, "REPEAT", "REPEAT")
+    bar.Checkerboard:SetHorizTile(true)
+    bar.Checkerboard:SetVertTile(true)
+
+    bar.SolidTexture = bar.SegmentContainer:CreateTexture(nil, "ARTWORK")
+    bar.SolidTexture:SetAllPoints()
+    bar.SolidTexture:Hide()
+
+    bar.DropHighlight = bar:CreateTexture(nil, "OVERLAY")
+    bar.DropHighlight:SetAllPoints()
+    bar.DropHighlight:SetColorTexture(1, 1, 1, 0.2)
+    bar.DropHighlight:Hide()
+
+    local pinHeight = PIN_STEM_HEIGHT + PIN_CIRCLE_SIZE + 4
+    bar.PinsContainer = CreateFrame("Frame", nil, bar)
+    bar.PinsContainer:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 0, 0)
+    bar.PinsContainer:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", 0, 0)
+    bar.PinsContainer:SetHeight(pinHeight)
+    bar.PinsContainer:SetFrameStrata("TOOLTIP")
+    bar.PinsContainer:SetFrameLevel(PINS_CONTAINER_LEVEL)
+    bar.PinsContainer:Show()
+
+    bar.Notches = {}
+    for _, pct in ipairs({ 0.25, 0.5, 0.75 }) do
+        local notch = bar:CreateTexture(nil, "OVERLAY")
+        notch:SetColorTexture(1, 1, 1, 0.6)
+        notch:SetSize(NOTCH_WIDTH, NOTCH_HEIGHT)
+        notch.pct = pct
+        bar.Notches[#bar.Notches + 1] = notch
+    end
+
+    local function UpdateNotchPositions()
+        local barWidth = bar.SegmentContainer:GetWidth()
+        if barWidth <= 0 then return end
+        for _, notch in ipairs(bar.Notches) do
+            notch:ClearAllPoints()
+            notch:SetPoint("TOP", bar.SegmentContainer, "BOTTOMLEFT", barWidth * notch.pct, -NOTCH_GAP)
+        end
+    end
+    bar.SegmentContainer:HookScript("OnSizeChanged", UpdateNotchPositions)
+    C_Timer.After(NOTCH_POSITION_DELAY, UpdateNotchPositions)
+
+    bar:OnLoad()
+    bar:EnableMouse(true)
+    bar:SetScript("OnMouseUp", bar.OnMouseUp)
+    bar:SetScript("OnEnter", bar.OnEnter)
+    bar:SetScript("OnLeave", bar.OnLeave)
+
+    self.ui.gradientBar = bar
+    return bar
+end
+
+-- [ RECENT COLORS ]----------------------------------------------------------------------------------------------------
+function lib:AddRecentColor(pin)
+    if not pin or pin.type == "class" then return end
+    local color = pin.color
+    local hex = ColorToHex(color.r, color.g, color.b)
+
+    for i = #self.recentColors, 1, -1 do
+        local rc = self.recentColors[i]
+        if ColorToHex(rc.r, rc.g, rc.b) == hex and math.abs((rc.a or 1) - (color.a or 1)) < RECENT_ALPHA_EPSILON then
+            table.remove(self.recentColors, i)
+        end
+    end
+    
+    table.insert(self.recentColors, 1, { r = color.r, g = color.g, b = color.b, a = color.a or 1 })
+
+    while #self.recentColors > RECENT_COLORS_MAX do
+        table.remove(self.recentColors)
+    end
+end
+
+function lib:UpdateRecentColors()
+    if not self.ui.recentColorsBar then return end
+    for i = 1, RECENT_COLORS_MAX do
+        local swatch = self.ui.recentColorsBar.swatches[i]
+        local c = self.recentColors[i]
+        if c then
+            swatch:SetBackdropBorderColor(0, 0, 0, 1)
+            swatch.Color:SetColorTexture(c.r, c.g, c.b, c.a or 1)
+            swatch.Checkerboard:SetAlpha(1)
+            swatch:EnableMouse(true)
+            swatch.TooltipText = CL.RECENT_TT
+            swatch.ColorModel = c
+        else
+            swatch:SetBackdropBorderColor(0, 0, 0, 0)
+            swatch.Color:SetColorTexture(0, 0, 0, 0)
+            swatch.Checkerboard:SetAlpha(0)
+            swatch:EnableMouse(false)
+            swatch.TooltipText = nil
+            swatch.ColorModel = nil
+        end
+    end
+end
+
+function lib:CreateRecentColorsBar()
+    if self.ui.recentColorsBar then return self.ui.recentColorsBar end
+
+    local container = CreateFrame("Frame", nil, self.ui.gradientBar)
+    container:SetPoint("BOTTOMLEFT", self.ui.gradientBar.PinsContainer, "TOPLEFT", 0, 2)
+    container:SetPoint("BOTTOMRIGHT", self.ui.gradientBar.PinsContainer, "TOPRIGHT", 0, 2)
+    container:SetHeight(RECENT_SWATCH_SIZE)
+    container:SetFrameStrata("FULLSCREEN_DIALOG")
+    container:SetFrameLevel(self.ui.frame:GetFrameLevel() + RECENT_COLORS_LEVEL_OFFSET)
+    
+    container.swatches = {}
+
+    -- RECENT_COLORS_MAX swatches + gaps ~304px wide at default sizing.
+    for i = 1, RECENT_COLORS_MAX do
+        local swatch = CreateFrame("Frame", nil, container, "BackdropTemplate")
+        swatch:SetSize(RECENT_SWATCH_SIZE, RECENT_SWATCH_SIZE)
+        if i == 1 then
+            swatch:SetPoint("LEFT", container, "LEFT", 0, 0)
+        else
+            swatch:SetPoint("LEFT", container.swatches[i - 1], "RIGHT", RECENT_SWATCH_SPACING, 0)
+        end
+        
+        swatch:SetBackdrop({ bgFile = WHITE_TEXTURE, edgeFile = WHITE_TEXTURE, edgeSize = SWATCH_BORDER })
+        swatch:SetBackdropBorderColor(0, 0, 0, 1)
+        swatch:SetBackdropColor(0, 0, 0, 0)
+        swatch:RegisterForDrag("LeftButton")
+        
+        swatch.Checkerboard = swatch:CreateTexture(nil, "BACKGROUND")
+        swatch.Checkerboard:SetPoint("TOPLEFT", SWATCH_BORDER, -SWATCH_BORDER)
+        swatch.Checkerboard:SetPoint("BOTTOMRIGHT", -SWATCH_BORDER, SWATCH_BORDER)
+        swatch.Checkerboard:SetTexture(CHECKERBOARD_TEXTURE, "REPEAT", "REPEAT")
+        swatch.Checkerboard:SetHorizTile(true)
+        swatch.Checkerboard:SetVertTile(true)
+
+        swatch.Color = swatch:CreateTexture(nil, "ARTWORK")
+        swatch.Color:SetPoint("TOPLEFT", SWATCH_BORDER, -SWATCH_BORDER)
+        swatch.Color:SetPoint("BOTTOMRIGHT", -SWATCH_BORDER, SWATCH_BORDER)
+
+        swatch:SetScript("OnEnter", function(self)
+            if not lib:IsOpen() then return end
+            if self.TooltipText then
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:ClearLines()
+                GameTooltip:AddLine(self.TooltipText)
+                GameTooltip:Show()
+            end
+        end)
+        swatch:SetScript("OnLeave", HideTooltip)
+
+        swatch:SetScript("OnDragStart", function(self)
+            if not lib.multiPinMode and #lib.pins > 0 then return end
+            if not self.ColorModel then return end
+            lib:StartDrag(self.ColorModel.r, self.ColorModel.g, self.ColorModel.b, self.ColorModel.a)
+        end)
+        swatch:SetScript("OnDragStop", function() lib:EndDrag() end)
+        
+        container.swatches[i] = swatch
+    end
+    
+    self.ui.recentColorsBar = container
+    return container
+end
+
+-- [ FRAME CREATION ]---------------------------------------------------------------------------------------------------
+function lib:CreatePickerFrame()
+    if self.ui.frame then return self.ui.frame end
+
+    local f = CreateFrame("Frame", nil, UIParent)
+    -- Hide before wiring OnHide: a post-script :Hide() would fire OnHide and consume the callback.
+    f:Hide()
+    f:SetSize(PICKER_WIDTH, PICKER_HEIGHT)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("FULLSCREEN_DIALOG")
+
+    local border = CreateFrame("Frame", nil, f, "DialogBorderTranslucentTemplate")
+    border:SetAllPoints(f)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:EnableKeyboard(true)
+    f:SetClampedToScreen(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+
+    f:SetScript("OnKeyDown", function(self, key)
+        -- Combat protects keyboard propagation; entering combat closes pickers, while new ones disable keyboard input.
+        if key == "ESCAPE" then
+            if not InCombatLockdown() then self:SetPropagateKeyboardInput(false) end
+            lib.wasCancelled = true
+            lib:CloseFrame()
+        elseif not InCombatLockdown() then
+            self:SetPropagateKeyboardInput(true)
+        end
+    end)
+
+    f:SetScript("OnHide", function()
+        if lib.ui.gradientBar then lib.ui.gradientBar:Hide() end
+        if lib.ui.classSwatch then lib.ui.classSwatch:Hide() end
+        lib:EndTour()
+        if lib.info.button then lib.info.button:Hide() end
+        lib:EndDrag()
+
+        local callback, cancelled, result = lib.callback, lib.wasCancelled
+        if callback then
+            local function BuildResult(pins, curve, desaturated)
+                local result = { curve = curve, pins = SerializePins(pins) }
+                if lib.hasDesaturation then result.desaturated = desaturated end
+                return result
+            end
+            if lib.wasCancelled then
+                if lib.snapshotRecent then
+                    wipe(lib.recentColors)
+                    for i = 1, #lib.snapshotRecent do lib.recentColors[i] = lib.snapshotRecent[i] end
+                end
+                result = BuildResult(lib.snapshotPins, lib:BuildColorCurve(lib.snapshotPins), lib.snapshotDesaturated)
+            elseif lib.pins and #lib.pins > 0 then
+                if not lib.multiPinMode then
+                    lib.colorCurve = lib:BuildColorCurve()
+                    -- Single-color has no drop event, so commit the picked color to recents here.
+                    lib:AddRecentColor(lib.pins[1])
+                    lib:UpdateRecentColors()
+                end
+                result = BuildResult(lib.pins, lib.colorCurve, lib.desaturated)
+            end
+        end
+        local hideTooltip = lib.tooltipHide
+        lib.snapshotPins = nil
+        lib.snapshotRecent = nil
+        lib.wasCancelled = false
+        lib.callback = nil
+        lib.classColor = nil
+        lib.tooltipHide = nil
+        GameTooltip = nil
+        lib.recentColors = {}
+        -- Release consumer references before either callback can open a new editor session.
+        if hideTooltip then hideTooltip() end
+        if callback then callback(result, cancelled) end
+    end)
+
+    self.ui.frame = f
+    return f
+end
+
+function lib:CloseFrame()
+    if self.ui.frame then self.ui.frame:Hide() end
+end
+
+-- [ COLOR AREA WIDGET ]------------------------------------------------------------------------------------------------
+local ColorAreaMixin = {}
+
+function ColorAreaMixin:GetColorRGB() return self.r, self.g, self.b end
+
+function ColorAreaMixin:GetColorAlpha() return self.a end
+
+function ColorAreaMixin:Notify() self.OnColorChanged(self, self.r, self.g, self.b) end
+
+function ColorAreaMixin:SetColorRGBA(r, g, b, a)
+    local h, s, v = RGBToHSV(r, g, b)
+    -- Grey and black carry no hue, so the last real one is kept or the rail thumb would snap to red.
+    if s > 0 then self.h = h end
+    self.s, self.v = s, v
+    self.r, self.g, self.b, self.a = r, g, b, a
+    self:Repaint()
+    self:Notify()
+end
+
+function ColorAreaMixin:SetColorRGB(r, g, b) self:SetColorRGBA(r, g, b, self.a) end
+
+function ColorAreaMixin:SetColorHSV(h, s, v)
+    self.h, self.s, self.v = h, s, v
+    self.r, self.g, self.b = HSVToRGB(h, s, v)
+    self:Repaint()
+    self:Notify()
+end
+
+function ColorAreaMixin:SetColorAlpha(a)
+    self.a = a
+    self:Repaint()
+    self:Notify()
+end
+
+function ColorAreaMixin:Repaint()
+    local hr, hg, hb = HSVToRGB(self.h, 1, 1)
+    self.Square.Base:SetColorTexture(hr, hg, hb, 1)
+    self.AlphaBar.Fill:SetGradient("VERTICAL", CreateColor(self.r, self.g, self.b, 0), CreateColor(self.r, self.g, self.b, 1))
+
+    self.Square.Thumb:ClearAllPoints()
+    self.Square.Thumb:SetPoint("CENTER", self.Square, "BOTTOMLEFT", self.s * SV_SQUARE_SIZE, self.v * SV_SQUARE_SIZE)
+    self.HueBar.Thumb:ClearAllPoints()
+    self.HueBar.Thumb:SetPoint("CENTER", self.HueBar, "TOP", 0, -self.h * BAR_HEIGHT)
+    self.AlphaBar.Thumb:ClearAllPoints()
+    self.AlphaBar.Thumb:SetPoint("CENTER", self.AlphaBar, "BOTTOM", 0, self.a * BAR_HEIGHT)
+end
+
+local function SampleSquare(region)
+    local area = region:GetParent()
+    local x, y = GetCursorPosition()
+    local scale = region:GetEffectiveScale()
+    local s = ClampPosition((x / scale - region:GetLeft()) / SV_SQUARE_SIZE)
+    local v = ClampPosition((y / scale - region:GetBottom()) / SV_SQUARE_SIZE)
+    area:SetColorHSV(area.h, s, v)
+end
+
+local function SampleHue(region)
+    local area = region:GetParent()
+    local _, y = GetCursorPosition()
+    local scale = region:GetEffectiveScale()
+    area:SetColorHSV(ClampPosition((region:GetTop() - y / scale) / BAR_HEIGHT), area.s, area.v)
+end
+
+local function SampleAlpha(region)
+    local area = region:GetParent()
+    local _, y = GetCursorPosition()
+    local scale = region:GetEffectiveScale()
+    area:SetColorAlpha(ClampPosition((y / scale - region:GetBottom()) / BAR_HEIGHT))
+end
+
+local function TrackOnUpdate(self, elapsed)
+    -- The button can come up anywhere on screen, so poll it rather than trusting OnMouseUp to arrive.
+    if not IsMouseButtonDown("LeftButton") then
+        self:SetScript("OnUpdate", nil)
+        return
+    end
+    self.elapsed = self.elapsed + elapsed
+    if self.elapsed < TRACK_THROTTLE then return end
+    self.elapsed = 0
+    self:Sample()
+end
+
+local function CreateTrackRegion(area, width, height, sample)
+    local region = CreateFrame("Frame", nil, area)
+    region:SetSize(width, height)
+    region:EnableMouse(true)
+    region.Sample = sample
+    region:SetScript("OnMouseDown", function(self, button)
+        if button ~= "LeftButton" then return end
+        self.elapsed = 0
+        self:Sample()
+        self:SetScript("OnUpdate", TrackOnUpdate)
+    end)
+    region:SetScript("OnMouseUp", function(self) self:SetScript("OnUpdate", nil) end)
+    return region
+end
+
+local function CreateBarThumb(region)
+    local thumb = region:CreateTexture(nil, "OVERLAY")
+    thumb:SetTexture(THUMB_TEXTURE)
+    thumb:SetSize(BAR_THUMB_WIDTH, BAR_THUMB_HEIGHT)
+    thumb:SetTexCoord(0.25, 1.0, 0, 0.875)
+    return thumb
+end
+
+function lib:CreateColorSelect()
+    if self.ui.colorSelect then return self.ui.colorSelect end
+
+    local area = CreateFrame("Frame", nil, self.ui.frame)
+    Mixin(area, ColorAreaMixin)
+    area:SetSize(HUE_BAR_WIDTH + RAIL_GAP + SV_SQUARE_SIZE + RAIL_GAP + ALPHA_BAR_WIDTH, BAR_HEIGHT)
+    area:SetPoint("TOPLEFT", self.ui.frame, "TOPLEFT", SV_PADDING_LEFT, SV_OFFSET_Y)
+
+    local hueBar = CreateTrackRegion(area, HUE_BAR_WIDTH, BAR_HEIGHT, SampleHue)
+    hueBar:SetPoint("TOPLEFT", area, "TOPLEFT", 0, 0)
+    local segHeight = BAR_HEIGHT / HUE_SEGMENTS
+    for i = 1, HUE_SEGMENTS do
+        local seg = hueBar:CreateTexture(nil, "ARTWORK")
+        seg:SetColorTexture(1, 1, 1, 1)
+        -- Shared edges rather than a height each, so neighbours can't round apart into hairline seams.
+        seg:SetPoint("TOPLEFT", hueBar, "TOPLEFT", 0, -(i - 1) * segHeight)
+        seg:SetPoint("BOTTOMRIGHT", hueBar, "TOPRIGHT", 0, -i * segHeight)
+        local top, bottom = HUE_STOPS[i], HUE_STOPS[i + 1]
+        seg:SetGradient("VERTICAL", CreateColor(bottom[1], bottom[2], bottom[3], 1), CreateColor(top[1], top[2], top[3], 1))
+    end
+    hueBar.Thumb = CreateBarThumb(hueBar)
+    area.HueBar = hueBar
+
+    local square = CreateTrackRegion(area, SV_SQUARE_SIZE, SV_SQUARE_SIZE, SampleSquare)
+    square:SetPoint("LEFT", hueBar, "RIGHT", RAIL_GAP, 0)
+    square.Base = square:CreateTexture(nil, "BACKGROUND")
+    square.Base:SetAllPoints()
+    square.SatFade = square:CreateTexture(nil, "BORDER")
+    square.SatFade:SetAllPoints()
+    square.SatFade:SetColorTexture(1, 1, 1, 1)
+    square.SatFade:SetGradient("HORIZONTAL", CreateColor(1, 1, 1, 1), CreateColor(1, 1, 1, 0))
+    square.ValFade = square:CreateTexture(nil, "ARTWORK")
+    square.ValFade:SetAllPoints()
+    square.ValFade:SetColorTexture(1, 1, 1, 1)
+    square.ValFade:SetGradient("VERTICAL", CreateColor(0, 0, 0, 1), CreateColor(0, 0, 0, 0))
+    square.Thumb = square:CreateTexture(nil, "OVERLAY")
+    square.Thumb:SetTexture(THUMB_TEXTURE)
+    square.Thumb:SetSize(SV_THUMB_SIZE, SV_THUMB_SIZE)
+    square.Thumb:SetTexCoord(0, 0.15625, 0, 0.625)
+    area.Square = square
+
+    local alphaBar = CreateTrackRegion(area, ALPHA_BAR_WIDTH, BAR_HEIGHT, SampleAlpha)
+    alphaBar:SetPoint("LEFT", square, "RIGHT", RAIL_GAP, 0)
+    alphaBar.Checker = alphaBar:CreateTexture(nil, "BACKGROUND")
+    alphaBar.Checker:SetAllPoints()
+    alphaBar.Checker:SetTexture(CHECKERBOARD_TEXTURE, "REPEAT", "REPEAT")
+    alphaBar.Checker:SetHorizTile(true)
+    alphaBar.Checker:SetVertTile(true)
+    alphaBar.Fill = alphaBar:CreateTexture(nil, "ARTWORK")
+    alphaBar.Fill:SetAllPoints()
+    alphaBar.Fill:SetColorTexture(1, 1, 1, 1)
+    alphaBar.Thumb = CreateBarThumb(alphaBar)
+    area.AlphaBar = alphaBar
+
+    area.h, area.s, area.v = 0, 0, 1
+    area.r, area.g, area.b, area.a = DEFAULT_COLOR.r, DEFAULT_COLOR.g, DEFAULT_COLOR.b, DEFAULT_COLOR.a
+    area:Repaint()
+    area.OnColorChanged = function(_, r, g, b) lib:OnColorChanged(r, g, b) end
+
+    self.ui.colorSelect = area
+    return area
+end
+
+function lib:OnColorChanged(r, g, b)
+    local a = self.ui.colorSelect:GetColorAlpha()
+    if self.ui.currentSwatch then
+        self.ui.currentSwatch.Color:SetColorTexture(r, g, b, a)
+    end
+    if self.ui.hexBox then
+        self.ui.hexBox:SetText(ColorToHex(r, g, b))
+    end
+
+    if #self.pins > 0 and not self.multiPinMode then
+        local pin, c = self.pins[1], self.pins[1].color
+        -- Only a real RGB edit demotes a class pin; an opacity-only change leaves it resolving to the class color.
+        if not self.suppressCallback and pin.type == "class" and (c.r ~= r or c.g ~= g or c.b ~= b) then
+            pin.type = nil
+        end
+        pin.color = { r = r, g = g, b = b, a = a }
+        if pin.type ~= "class" then
+            self:UpdateCurve()
+            if self.ui.gradientBar then self.ui.gradientBar:Refresh() end
+        end
+    end
+end
+
+
+
+-- [ CURRENT COLOR SWATCH ]---------------------------------------------------------------------------------------------
+function lib:CreateCurrentSwatch()
+    if self.ui.currentSwatch then return self.ui.currentSwatch end
+
+    local frame = CreateFrame("Frame", nil, self.ui.frame, "BackdropTemplate")
+    frame:SetSize(SWATCH_WIDTH, SWATCH_HEIGHT)
+    frame:SetBackdrop({ bgFile = WHITE_TEXTURE, edgeFile = WHITE_TEXTURE, edgeSize = SWATCH_BORDER })
+    frame:SetBackdropBorderColor(0, 0, 0, 1)
+    frame:SetBackdropColor(0, 0, 0, 0)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+
+    frame.Checkerboard = frame:CreateTexture(nil, "BACKGROUND")
+    frame.Checkerboard:SetPoint("TOPLEFT", SWATCH_BORDER, -SWATCH_BORDER)
+    frame.Checkerboard:SetPoint("BOTTOMRIGHT", -SWATCH_BORDER, SWATCH_BORDER)
+    frame.Checkerboard:SetTexture(CHECKERBOARD_TEXTURE, "REPEAT", "REPEAT")
+    frame.Checkerboard:SetHorizTile(true)
+    frame.Checkerboard:SetVertTile(true)
+
+    frame.Color = frame:CreateTexture(nil, "ARTWORK")
+    frame.Color:SetPoint("TOPLEFT", SWATCH_BORDER, -SWATCH_BORDER)
+    frame.Color:SetPoint("BOTTOMRIGHT", -SWATCH_BORDER, SWATCH_BORDER)
+    frame.Color:SetColorTexture(1, 1, 1, 1)
+
+    frame.Label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    frame.Label:SetPoint("TOP", frame, "BOTTOM", 0, -2)
+    frame.Label:SetText(CL.COLOR_LBL)
+    frame.Label:SetTextColor(0.7, 0.7, 0.7, 1)
+
+    frame:SetScript("OnDragStart", function()
+        if not lib.multiPinMode and #lib.pins > 0 then return end
+        local r, g, b = lib.ui.colorSelect:GetColorRGB()
+        local a = lib.ui.colorSelect and lib.ui.colorSelect:GetColorAlpha() or 1
+        lib:StartDrag(r, g, b, a)
+    end)
+
+    frame:SetScript("OnDragStop", function() lib:EndDrag() end)
+
+    self.ui.currentSwatch = frame
+    return frame
+end
+
+-- [ HEX INPUT ]--------------------------------------------------------------------------------------------------------
+function lib:CreateHexInput()
+    if self.ui.hexBoxFrame then return self.ui.hexBoxFrame end
+
+    local frame = CreateFrame("Frame", nil, self.ui.frame, "BackdropTemplate")
+    frame:SetHeight(HEX_BOX_HEIGHT)
+    frame:SetBackdrop({
+        bgFile = 130937,
+        edgeFile = 137057,
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    frame:SetBackdropColor(0, 0, 0, 0.5)
+    frame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+
+    local box = CreateFrame("EditBox", nil, frame)
+    box:SetFontObject(ChatFontNormal)
+    box:SetAllPoints(frame)
+    box:SetAutoFocus(false)
+    box:SetMaxLetters(6)
+    box:SetJustifyH("CENTER")
+    box:SetTextInsets(5, 5, 5, 5)
+
+    frame:SetScript("OnMouseDown", function() box:SetFocus() end)
+
+    box:SetScript("OnEnterPressed", function(self)
+        local r, g, b = HexToColor(self:GetText())
+        if r then
+            lib.ui.colorSelect:SetColorRGB(r, g, b)
+        elseif lib.ui.colorSelect then
+            self:SetText(ColorToHex(lib.ui.colorSelect:GetColorRGB()))
+        end
+        self:ClearFocus()
+    end)
+
+    box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+    self.ui.hexBoxFrame = frame
+    self.ui.hexBox = box
+    return frame
+end
+
+-- [ CLOSE BUTTON ]-----------------------------------------------------------------------------------------------------
+function lib:CreateCloseButton()
+    if self.ui.closeButton then return end
+    self.ui.closeButton = CreateFrame("Button", nil, self.ui.frame, "UIPanelCloseButton")
+    self.ui.closeButton:SetPoint("TOPRIGHT", self.ui.frame, "TOPRIGHT", -2, -2)
+    self.ui.closeButton:SetScript("OnClick", function()
+        lib.wasCancelled = true
+        lib:CloseFrame()
+    end)
+end
+
+-- [ MODE TITLE ]-------------------------------------------------------------------------------------------------------
+function lib:CreateModeTitle()
+    if self.ui.modeTitle then return end
+    self.ui.modeTitle = self.ui.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    self.ui.modeTitle:SetPoint("TOP", self.ui.frame, "TOP", 0, TITLE_OFFSET_Y)
+end
+
+-- [ FOOTER ]-----------------------------------------------------------------------------------------------------------
+function lib:CreateFooter()
+    if self.ui.footer then return end
+
+    self.ui.footer = CreateFrame("Frame", nil, self.ui.frame)
+    self.ui.footer:SetPoint("BOTTOMLEFT", self.ui.frame, "BOTTOMLEFT", CONTENT_PADDING, FOOTER_MARGIN_BOTTOM)
+    self.ui.footer:SetPoint("BOTTOMRIGHT", self.ui.frame, "BOTTOMRIGHT", -CONTENT_PADDING, FOOTER_MARGIN_BOTTOM)
+    self.ui.footer:SetHeight(FOOTER_HEIGHT)
+
+    self.ui.footer.Divider = self.ui.footer:CreateTexture(nil, "ARTWORK")
+    self.ui.footer.Divider:SetTexture(389194)
+    self.ui.footer.Divider:SetSize(280, 16)
+    self.ui.footer.Divider:SetPoint("TOP", self.ui.footer, "TOP", 0, FOOTER_DIVIDER_OFFSET)
+
+    self.ui.applyButton = CreateFrame("Button", nil, self.ui.footer, "UIPanelButtonTemplate")
+    self.ui.applyButton:SetText(CL.APPLY_BTN)
+    self.ui.applyButton:SetHeight(FOOTER_BUTTON_HEIGHT)
+    self.ui.applyButton:SetPoint("TOPLEFT", self.ui.footer, "TOPLEFT", 0, -FOOTER_TOP_PADDING)
+    self.ui.applyButton:SetPoint("TOPRIGHT", self.ui.footer, "TOPRIGHT", 0, -FOOTER_TOP_PADDING)
+    self.ui.applyButton:SetScript("OnClick", function()
+        lib.wasCancelled = false
+        lib:CloseFrame()
+    end)
+    self.ui.applyButton:SetScript("OnEnter", function(self)
+        if not lib:IsOpen() or not lib.pins or #lib.pins > 0 then return end
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine(CL.APPLY_DEFAULT_TT)
+        GameTooltip:Show()
+    end)
+    self.ui.applyButton:SetScript("OnLeave", HideTooltip)
+end
+
+-- [ LAYOUT ]-----------------------------------------------------------------------------------------------------------
+function lib:LayoutControls()
+    local cs = self.ui.colorSelect
+    local swatch = self.ui.currentSwatch
+    local classSwatch = self.ui.classSwatch
+    local hexBox = self.ui.hexBox
+
+    if not self.ui.swatchContainer then
+        self.ui.swatchContainer = CreateFrame("Frame", nil, self.ui.frame)
+    end
+    local container = self.ui.swatchContainer
+    container:ClearAllPoints()
+    -- Pinned to the content column's right edge at swatch width, so its margin mirrors the color area's on the left.
+    container:SetPoint("TOPRIGHT", self.ui.frame, "TOPRIGHT", -CONTENT_PADDING, SV_OFFSET_Y)
+    container:SetPoint("BOTTOMRIGHT", self.ui.frame, "RIGHT", -CONTENT_PADDING, 0)
+    container:SetWidth(SWATCH_WIDTH)
+
+    swatch:SetParent(container)
+    swatch:ClearAllPoints()
+    swatch:SetPoint("TOP", container, "TOP", 0, -SWATCH_GAP)
+
+    classSwatch:SetParent(container)
+    classSwatch:ClearAllPoints()
+    classSwatch:SetPoint("TOP", swatch, "BOTTOM", 0, -(CLASS_SWATCH_GAP + 14))
+
+    if self.ui.desatCheckbox then
+        self.ui.desatCheckbox:SetParent(container)
+        self.ui.desatCheckbox:ClearAllPoints()
+        self.ui.desatCheckbox:SetPoint("TOP", classSwatch, "BOTTOM", 0, -(CLASS_SWATCH_GAP + 14))
+        if self.hasDesaturation then self.ui.desatCheckbox:Show()
+        else self.ui.desatCheckbox:Hide() end
+    end
+
+    local hexBoxFrame = self.ui.hexBoxFrame or self.ui.hexBox
+    if hexBoxFrame then
+        hexBoxFrame:ClearAllPoints()
+        hexBoxFrame:SetPoint("TOP", cs, "BOTTOM", 0, -SWATCH_GAP)
+        hexBoxFrame:SetPoint("LEFT", self.ui.frame, "LEFT", CONTENT_PADDING, 0)
+        hexBoxFrame:SetPoint("RIGHT", self.ui.frame, "RIGHT", -CONTENT_PADDING, 0)
+    end
+end
+
+-- [ INITIALIZE ]-------------------------------------------------------------------------------------------------------
+function lib:Initialize()
+    if self.ui.initialized then return end
+
+    self:CreatePickerFrame()
+    self:CreateCloseButton()
+    self:CreateModeTitle()
+    self:CreateFooter()
+    self:CreateGradientBar()
+    self:CreateColorSelect()
+    self:CreateCurrentSwatch()
+    self:CreateHexInput()
+    self:CreateClassColorSwatch()
+    self:SetupEventFrame()
+    self:CreateDragTexture()
+    self:CreateTourButton()
+    self:CreateDesaturationCheckbox()
+
+    self.ui.initialized = true
+end
+
+-- [ TOUR SYSTEM ]------------------------------------------------------------------------------------------------------
+local TOUR_ACCENT_CLR = { r = 0.3, g = 0.8, b = 0.3 }
+local TOUR_BG_CLR = { r = 0.08, g = 0.08, b = 0.08, a = 0.95 }
+local TOUR_BORDER_CLR = { r = 0.25, g = 0.25, b = 0.25, a = 0.9 }
+local TOUR_TEXT_CLR = { r = 0.85, g = 0.85, b = 0.85 }
+local TOUR_TITLE_CLR = { r = TOUR_ACCENT_CLR.r, g = TOUR_ACCENT_CLR.g, b = TOUR_ACCENT_CLR.b }
+local TOUR_PAD = 8
+local TOUR_MAX_WIDTH = 220
+local TOUR_BORDER = 1
+local TOUR_BTN_H = 18
+local TOUR_BTN_W = 60
+local TOUR_BTN_GAP = 6
+local TOUR_PULSE_LEVEL = 512
+
+-- [ TOUR LOCALIZATION ]------------------------------------------------------------------------------------------------
+local CP_LOCALE = {
+    enUS = {
+        TOUR_TIP = "Color Picker Tour",
+        NEXT = "Next", DONE = "Done",
+        SQUARE_TITLE = "Color Square",
+        SQUARE_TEXT = "Pick saturation across and brightness down.\nThe left rail sets hue, the right opacity.",
+        SWATCH_TITLE = "Current Color",
+        SWATCH_TEXT = "Your selected color preview.\nDrag it onto the gradient bar to add\na color stop.",
+        CLASS_TITLE = "Class Color",
+        CLASS_TEXT = "Your class color swatch.\nDrag onto the gradient bar to add a\nclass-colored stop that follows your spec.",
+        GRADIENT_TITLE = "Gradient Bar",
+        GRADIENT_TEXT = "Visualizes your color curve.\nDrag colors here to add stops.\nRight-click a pin to remove it.",
+        PIN_TITLE = "Pin Controls",
+        PIN_TEXT = "Use arrow keys to nudge a pin position.\nHold Shift for fine-grained precision.",
+        APPLY_TITLE = "Apply / Clear",
+        APPLY_TEXT = "Apply Color saves your gradient.\nClearing all pins resets the component\nto its default color.",
+        POS_TT = "Position: %.1f%%",
+        NUDGE_HINT = "Arrow keys to nudge, Shift for fine",
+        CLASS_LBL = "Class",
+        DESAT_LBL = "Desat",
+        DESAT_TT_TITLE = "Desaturated",
+        DESAT_TT_TEXT = "Apply grayscale to the texture",
+        APPLY_BTN = "Apply Color",
+        CLEAR_BTN = "Clear Color",
+        RECENT_TT = "Recent Color\nDrag to use as a pin",
+        COLOR_LBL = "Color",
+        APPLY_DEFAULT_TT = "applies default color",
+        MODE_MULTI = "Multi-Color Mode",
+        MODE_SINGLE = "Single Color Mode",
+    },
+    deDE = {
+        TOUR_TIP = "Farbwähler-Tour",
+        NEXT = "Weiter", DONE = "Fertig",
+        SQUARE_TITLE = "Farbfeld",
+        SQUARE_TEXT = "Sättigung waagerecht, Helligkeit senkrecht.\nLinke Leiste: Farbton, rechte: Deckkraft.",
+        SWATCH_TITLE = "Aktuelle Farbe",
+        SWATCH_TEXT = "Vorschau der gewählten Farbe.\nAuf den Verlaufsbalken ziehen, um\neinen Farbstopp hinzuzufügen.",
+        CLASS_TITLE = "Klassenfarbe",
+        CLASS_TEXT = "Klassenfarbmuster.\nAuf den Verlaufsbalken ziehen für einen\nklassengebundenen Farbstopp.",
+        GRADIENT_TITLE = "Verlaufsbalken",
+        GRADIENT_TEXT = "Zeigt Ihre Farbkurve an.\nFarben hierher ziehen zum Hinzufügen.\nRechtsklick auf einen Pin zum Entfernen.",
+        PIN_TITLE = "Pin-Steuerung",
+        PIN_TEXT = "Pfeiltasten verschieben einen Pin.\nUmschalttaste für feine Schritte.",
+        APPLY_TITLE = "Anwenden / Löschen",
+        APPLY_TEXT = "Farbe anwenden speichert den Verlauf.\nAlle Pins entfernen setzt die Komponente\nauf die Standardfarbe zurück.",
+        POS_TT = "Position: %.1f%%",
+        NUDGE_HINT = "Pfeiltasten verschieben, Umschalttaste für feine Schritte",
+        CLASS_LBL = "Klasse",
+        DESAT_LBL = "Entsät.",
+        DESAT_TT_TITLE = "Entsättigt",
+        DESAT_TT_TEXT = "Textur in Graustufen anzeigen",
+        APPLY_BTN = "Farbe anwenden",
+        CLEAR_BTN = "Farbe löschen",
+        RECENT_TT = "Aktuelle Farbe\nZiehen, um als Pin zu verwenden",
+        COLOR_LBL = "Farbe",
+        APPLY_DEFAULT_TT = "wendet die Standardfarbe an",
+        MODE_MULTI = "Mehrfarben-Modus",
+        MODE_SINGLE = "Einfarbiger Modus",
+    },
+    frFR = {
+        TOUR_TIP = "Visite du sélecteur",
+        NEXT = "Suivant", DONE = "Terminé",
+        SQUARE_TITLE = "Carré de couleur",
+        SQUARE_TEXT = "Saturation en largeur, luminosité en hauteur.\nRail gauche : teinte, rail droit : opacité.",
+        SWATCH_TITLE = "Couleur actuelle",
+        SWATCH_TEXT = "Aperçu de la couleur sélectionnée.\nFaites glisser sur la barre de dégradé\npour ajouter un arrêt.",
+        CLASS_TITLE = "Couleur de classe",
+        CLASS_TEXT = "Échantillon de classe.\nFaites glisser sur la barre de dégradé\npour un arrêt lié à votre spé.",
+        GRADIENT_TITLE = "Barre de dégradé",
+        GRADIENT_TEXT = "Visualise votre courbe de couleur.\nFaites glisser des couleurs ici.\nClic droit sur un point pour le supprimer.",
+        PIN_TITLE = "Contrôles des points",
+        PIN_TEXT = "Utilisez les flèches pour ajuster un point.\nMaintenez Maj pour un réglage fin.",
+        APPLY_TITLE = "Appliquer / Effacer",
+        APPLY_TEXT = "Appliquer sauvegarde le dégradé.\nSupprimer tous les points réinitialise\nla couleur par défaut.",
+        POS_TT = "Position : %.1f%%",
+        NUDGE_HINT = "Flèches pour ajuster, Maj pour réglage fin",
+        CLASS_LBL = "Classe",
+        DESAT_LBL = "Désat.",
+        DESAT_TT_TITLE = "Désaturé",
+        DESAT_TT_TEXT = "Appliquer des niveaux de gris à la texture",
+        APPLY_BTN = "Appliquer la couleur",
+        CLEAR_BTN = "Effacer la couleur",
+        RECENT_TT = "Couleur récente\nGlissez pour l'utiliser comme point",
+        COLOR_LBL = "Couleur",
+        APPLY_DEFAULT_TT = "applique la couleur par défaut",
+        MODE_MULTI = "Mode multi-couleurs",
+        MODE_SINGLE = "Mode couleur unique",
+    },
+    esES = {
+        TOUR_TIP = "Tour del selector",
+        NEXT = "Siguiente", DONE = "Hecho",
+        SQUARE_TITLE = "Cuadro de color",
+        SQUARE_TEXT = "Saturación en horizontal, brillo en vertical.\nBarra izquierda: tono, derecha: opacidad.",
+        SWATCH_TITLE = "Color actual",
+        SWATCH_TEXT = "Vista previa del color seleccionado.\nArrástralo a la barra de gradiente\npara añadir una parada.",
+        CLASS_TITLE = "Color de clase",
+        CLASS_TEXT = "Muestra de color de clase.\nArrástralo a la barra de gradiente para\nuna parada vinculada a tu especialización.",
+        GRADIENT_TITLE = "Barra de gradiente",
+        GRADIENT_TEXT = "Visualiza tu curva de color.\nArrastra colores aquí para añadir paradas.\nClic derecho en un pin para eliminarlo.",
+        PIN_TITLE = "Controles de pines",
+        PIN_TEXT = "Usa las flechas para ajustar un pin.\nMantén Mayús para precisión fina.",
+        APPLY_TITLE = "Aplicar / Borrar",
+        APPLY_TEXT = "Aplicar guarda el gradiente.\nEliminar todos los pines restablece\nel color predeterminado.",
+        POS_TT = "Posición: %.1f%%",
+        NUDGE_HINT = "Flechas para ajustar, Mayús para precisión",
+        CLASS_LBL = "Clase",
+        DESAT_LBL = "Desat.",
+        DESAT_TT_TITLE = "Desaturado",
+        DESAT_TT_TEXT = "Aplicar escala de grises a la textura",
+        APPLY_BTN = "Aplicar color",
+        CLEAR_BTN = "Borrar color",
+        RECENT_TT = "Color reciente\nArrastra para usar como pin",
+        COLOR_LBL = "Color",
+        APPLY_DEFAULT_TT = "aplica el color predeterminado",
+        MODE_MULTI = "Modo multicolor",
+        MODE_SINGLE = "Modo un solo color",
+    },
+    ptBR = {
+        TOUR_TIP = "Tour do seletor",
+        NEXT = "Próximo", DONE = "Concluído",
+        SQUARE_TITLE = "Quadro de cores",
+        SQUARE_TEXT = "Saturação na horizontal, brilho na vertical.\nBarra esquerda: matiz, direita: opacidade.",
+        SWATCH_TITLE = "Cor atual",
+        SWATCH_TEXT = "Prévia da cor selecionada.\nArraste para a barra de gradiente\npara adicionar uma parada.",
+        CLASS_TITLE = "Cor de classe",
+        CLASS_TEXT = "Amostra de cor da classe.\nArraste para a barra de gradiente para\numa parada vinculada à sua spec.",
+        GRADIENT_TITLE = "Barra de gradiente",
+        GRADIENT_TEXT = "Visualiza sua curva de cor.\nArraste cores aqui para adicionar paradas.\nClique direito em um pin para remover.",
+        PIN_TITLE = "Controles de pinos",
+        PIN_TEXT = "Use as setas para ajustar um pino.\nSegure Shift para precisão fina.",
+        APPLY_TITLE = "Aplicar / Limpar",
+        APPLY_TEXT = "Aplicar salva o gradiente.\nRemover todos os pins redefine\na cor padrão.",
+        POS_TT = "Posição: %.1f%%",
+        NUDGE_HINT = "Setas para ajustar, Shift para precisão",
+        CLASS_LBL = "Classe",
+        DESAT_LBL = "Dessat.",
+        DESAT_TT_TITLE = "Dessaturado",
+        DESAT_TT_TEXT = "Aplicar escala de cinza à textura",
+        APPLY_BTN = "Aplicar cor",
+        CLEAR_BTN = "Limpar cor",
+        RECENT_TT = "Cor recente\nArraste para usar como pino",
+        COLOR_LBL = "Cor",
+        APPLY_DEFAULT_TT = "aplica a cor padrão",
+        MODE_MULTI = "Modo multicor",
+        MODE_SINGLE = "Modo cor única",
+    },
+    ruRU = {
+        TOUR_TIP = "Обзор палитры",
+        NEXT = "Далее", DONE = "Готово",
+        SQUARE_TITLE = "Цветовое поле",
+        SQUARE_TEXT = "Насыщенность по горизонтали, яркость по вертикали.\nЛевая полоса — оттенок, правая — прозрачность.",
+        SWATCH_TITLE = "Текущий цвет",
+        SWATCH_TEXT = "Предпросмотр выбранного цвета.\nПеретащите на полосу градиента,\nчтобы добавить точку.",
+        CLASS_TITLE = "Цвет класса",
+        CLASS_TEXT = "Образец цвета класса.\nПеретащите на полосу градиента для\nточки, связанной с вашей специализацией.",
+        GRADIENT_TITLE = "Полоса градиента",
+        GRADIENT_TEXT = "Показывает вашу кривую цвета.\nПеретащите цвета сюда.\nПКМ по точке для удаления.",
+        PIN_TITLE = "Управление точками",
+        PIN_TEXT = "Стрелки для сдвига точки.\nShift для мелких шагов.",
+        APPLY_TITLE = "Применить / Очистить",
+        APPLY_TEXT = "Применить сохраняет градиент.\nУдаление всех точек сбрасывает\nцвет по умолчанию.",
+        POS_TT = "Позиция: %.1f%%",
+        NUDGE_HINT = "Стрелки для сдвига, Shift для точности",
+        CLASS_LBL = "Класс",
+        DESAT_LBL = "Обесцв.",
+        DESAT_TT_TITLE = "Обесцвечено",
+        DESAT_TT_TEXT = "Применить градации серого к текстуре",
+        APPLY_BTN = "Применить цвет",
+        CLEAR_BTN = "Очистить цвет",
+        RECENT_TT = "Недавний цвет\nПеретащите, чтобы использовать",
+        COLOR_LBL = "Цвет",
+        APPLY_DEFAULT_TT = "применяет цвет по умолчанию",
+        MODE_MULTI = "Многоцветный режим",
+        MODE_SINGLE = "Одноцветный режим",
+    },
+    koKR = {
+        TOUR_TIP = "색상 선택기 안내",
+        NEXT = "다음", DONE = "완료",
+        SQUARE_TITLE = "색상 사각형",
+        SQUARE_TEXT = "가로는 채도, 세로는 밝기입니다.\n왼쪽 막대는 색조, 오른쪽은 불투명도.",
+        SWATCH_TITLE = "현재 색상",
+        SWATCH_TEXT = "선택한 색상 미리보기입니다.\n그라데이션 바로 드래그하여\n색상 정지점을 추가합니다.",
+        CLASS_TITLE = "직업 색상",
+        CLASS_TEXT = "직업 색상 견본입니다.\n그라데이션 바로 드래그하여\n전문화에 연동되는 정지점을 추가합니다.",
+        GRADIENT_TITLE = "그라데이션 바",
+        GRADIENT_TEXT = "색상 곡선을 시각화합니다.\n색상을 여기로 드래그하여 추가합니다.\n핀을 우클릭하여 제거합니다.",
+        PIN_TITLE = "핀 조작",
+        PIN_TEXT = "화살표 키로 핀 위치를 조정합니다.\nShift를 누르면 미세 조정됩니다.",
+        APPLY_TITLE = "적용 / 초기화",
+        APPLY_TEXT = "색상 적용은 그라데이션을 저장합니다.\n모든 핀을 제거하면 기본 색상으로\n초기화됩니다.",
+        POS_TT = "위치: %.1f%%",
+        NUDGE_HINT = "방향키로 이동, Shift로 미세 조정",
+        CLASS_LBL = "직업",
+        DESAT_LBL = "흑백",
+        DESAT_TT_TITLE = "흑백 처리",
+        DESAT_TT_TEXT = "텍스처에 회색조 적용",
+        APPLY_BTN = "색상 적용",
+        CLEAR_BTN = "색상 초기화",
+        RECENT_TT = "최근 색상\n드래그하여 핀으로 사용",
+        COLOR_LBL = "색상",
+        APPLY_DEFAULT_TT = "기본 색상 적용",
+        MODE_MULTI = "다중 색상 모드",
+        MODE_SINGLE = "단일 색상 모드",
+    },
+    zhCN = {
+        TOUR_TIP = "取色器导览",
+        NEXT = "下一步", DONE = "完成",
+        SQUARE_TITLE = "色彩方块",
+        SQUARE_TEXT = "横向为饱和度，纵向为亮度。\n左侧滑块调色调，右侧调不透明度。",
+        SWATCH_TITLE = "当前颜色",
+        SWATCH_TEXT = "所选颜色预览。\n拖动到渐变条上\n添加颜色停靠点。",
+        CLASS_TITLE = "职业颜色",
+        CLASS_TEXT = "职业颜色样本。\n拖动到渐变条上添加\n跟随专精变化的停靠点。",
+        GRADIENT_TITLE = "渐变条",
+        GRADIENT_TEXT = "显示您的颜色曲线。\n将颜色拖到这里添加停靠点。\n右键点击图钉以移除。",
+        PIN_TITLE = "图钉控制",
+        PIN_TEXT = "方向键微调图钉位置。\n按住Shift进行精细调整。",
+        APPLY_TITLE = "应用 / 清除",
+        APPLY_TEXT = "应用颜色保存渐变。\n清除所有图钉将重置为\n默认颜色。",
+        POS_TT = "位置: %.1f%%",
+        NUDGE_HINT = "方向键微调, Shift精细调整",
+        CLASS_LBL = "职业",
+        DESAT_LBL = "灰度",
+        DESAT_TT_TITLE = "灰度处理",
+        DESAT_TT_TEXT = "对纹理应用灰度",
+        APPLY_BTN = "应用颜色",
+        CLEAR_BTN = "清除颜色",
+        RECENT_TT = "最近颜色\n拖动以用作图钉",
+        COLOR_LBL = "颜色",
+        APPLY_DEFAULT_TT = "应用默认颜色",
+        MODE_MULTI = "多色模式",
+        MODE_SINGLE = "单色模式",
+    },
+    zhTW = {
+        TOUR_TIP = "取色器導覽",
+        NEXT = "下一步", DONE = "完成",
+        SQUARE_TITLE = "色彩方塊",
+        SQUARE_TEXT = "橫向為飽和度，縱向為亮度。\n左側滑桿調色調，右側調不透明度。",
+        SWATCH_TITLE = "目前顏色",
+        SWATCH_TEXT = "所選顏色預覽。\n拖動到漸層條上\n新增顏色停靠點。",
+        CLASS_TITLE = "職業顏色",
+        CLASS_TEXT = "職業顏色樣本。\n拖動到漸層條上新增\n跟隨專精變化的停靠點。",
+        GRADIENT_TITLE = "漸層條",
+        GRADIENT_TEXT = "顯示您的顏色曲線。\n將顏色拖到這裡新增停靠點。\n右鍵點擊圖釘以移除。",
+        PIN_TITLE = "圖釘控制",
+        PIN_TEXT = "方向鍵微調圖釘位置。\n按住Shift進行精細調整。",
+        APPLY_TITLE = "套用 / 清除",
+        APPLY_TEXT = "套用顏色儲存漸層。\n清除所有圖釘將重設為\n預設顏色。",
+        POS_TT = "位置: %.1f%%",
+        NUDGE_HINT = "方向鍵微調, Shift精細調整",
+        CLASS_LBL = "職業",
+        DESAT_LBL = "灰階",
+        DESAT_TT_TITLE = "灰階處理",
+        DESAT_TT_TEXT = "對紋理套用灰階",
+        APPLY_BTN = "套用顏色",
+        CLEAR_BTN = "清除顏色",
+        RECENT_TT = "最近顏色\n拖動以用作圖釘",
+        COLOR_LBL = "顏色",
+        APPLY_DEFAULT_TT = "套用預設顏色",
+        MODE_MULTI = "多色模式",
+        MODE_SINGLE = "單色模式",
+    },
+}
+CP_LOCALE.enGB = CP_LOCALE.enUS
+CP_LOCALE.esMX = CP_LOCALE.esES
+CL = CP_LOCALE[GetLocale()] or CP_LOCALE.enUS
+
+local isCJK_CP = ({ koKR = true, zhCN = true, zhTW = true })[GetLocale()]
+if isCJK_CP then TOUR_MAX_WIDTH = 240 end
+
+-- [ TOUR STOPS ]-------------------------------------------------------------------------------------------------------
+local TOUR_STOPS_CP = {
+    { anchor = function() return lib.ui.colorSelect end,
+      tooltipPoint = "TOPLEFT", tooltipRel = "TOPRIGHT", tpX = 8, tpY = 0,
+      title = CL.SQUARE_TITLE, text = CL.SQUARE_TEXT },
+    { anchor = function() return lib.ui.currentSwatch end,
+      tooltipPoint = "RIGHT", tooltipRel = "LEFT", tpX = -8, tpY = 0,
+      title = CL.SWATCH_TITLE, text = CL.SWATCH_TEXT },
+    { anchor = function() return lib.ui.classSwatch end,
+      tooltipPoint = "RIGHT", tooltipRel = "LEFT", tpX = -8, tpY = 0,
+      title = CL.CLASS_TITLE, text = CL.CLASS_TEXT },
+    { anchor = function() return lib.ui.gradientBar end,
+      tooltipPoint = "BOTTOM", tooltipRel = "TOP", tpX = 0, tpY = 8,
+      title = CL.GRADIENT_TITLE, text = CL.GRADIENT_TEXT },
+    { anchor = function() return lib.ui.gradientBar and lib.ui.gradientBar.PinsContainer end,
+      tooltipPoint = "BOTTOM", tooltipRel = "TOP", tpX = 0, tpY = 8,
+      title = CL.PIN_TITLE, text = CL.PIN_TEXT },
+    { anchor = function() return lib.ui.applyButton end,
+      tooltipPoint = "TOP", tooltipRel = "BOTTOM", tpX = 0, tpY = -8,
+      title = CL.APPLY_TITLE, text = CL.APPLY_TEXT },
+}
+
+-- [ TOUR TOOLTIP ]-----------------------------------------------------------------------------------------------------
+-- Lazy-created on first StartTour so non-tour users pay zero file-load cost.
+local cpTip
+
+local function MakeCPBorder(parent, horiz, p1, r1, p2, r2)
+    local t = parent:CreateTexture(nil, "BORDER")
+    t:SetColorTexture(TOUR_BORDER_CLR.r, TOUR_BORDER_CLR.g, TOUR_BORDER_CLR.b, TOUR_BORDER_CLR.a)
+    t:SetPoint(p1, parent, r1)
+    t:SetPoint(p2, parent, r2)
+    if horiz then t:SetHeight(TOUR_BORDER) else t:SetWidth(TOUR_BORDER) end
+end
+
+local function EnsureCpTip()
+    if cpTip then return cpTip end
+    cpTip = CreateFrame("Frame", nil, UIParent)
+    cpTip:SetFrameStrata("TOOLTIP")
+    cpTip:SetFrameLevel(999)
+    cpTip:Hide()
+
+    cpTip.bg = cpTip:CreateTexture(nil, "BACKGROUND")
+    cpTip.bg:SetAllPoints()
+    cpTip.bg:SetColorTexture(TOUR_BG_CLR.r, TOUR_BG_CLR.g, TOUR_BG_CLR.b, TOUR_BG_CLR.a)
+
+    MakeCPBorder(cpTip, true, "TOPLEFT", "TOPLEFT", "TOPRIGHT", "TOPRIGHT")
+    MakeCPBorder(cpTip, true, "BOTTOMLEFT", "BOTTOMLEFT", "BOTTOMRIGHT", "BOTTOMRIGHT")
+    MakeCPBorder(cpTip, false, "TOPLEFT", "TOPLEFT", "BOTTOMLEFT", "BOTTOMLEFT")
+    MakeCPBorder(cpTip, false, "TOPRIGHT", "TOPRIGHT", "BOTTOMRIGHT", "BOTTOMRIGHT")
+
+    local AW, B = 2, TOUR_BORDER
+    cpTip.accents = {}
+    cpTip.accents.top = cpTip:CreateTexture(nil, "ARTWORK")
+    cpTip.accents.top:SetColorTexture(TOUR_ACCENT_CLR.r, TOUR_ACCENT_CLR.g, TOUR_ACCENT_CLR.b, 0.8)
+    cpTip.accents.top:SetHeight(AW)
+    cpTip.accents.top:SetPoint("TOPLEFT", B, -B); cpTip.accents.top:SetPoint("TOPRIGHT", -B, -B)
+    cpTip.accents.bottom = cpTip:CreateTexture(nil, "ARTWORK")
+    cpTip.accents.bottom:SetColorTexture(TOUR_ACCENT_CLR.r, TOUR_ACCENT_CLR.g, TOUR_ACCENT_CLR.b, 0.8)
+    cpTip.accents.bottom:SetHeight(AW)
+    cpTip.accents.bottom:SetPoint("BOTTOMLEFT", B, B); cpTip.accents.bottom:SetPoint("BOTTOMRIGHT", -B, B)
+    cpTip.accents.left = cpTip:CreateTexture(nil, "ARTWORK")
+    cpTip.accents.left:SetColorTexture(TOUR_ACCENT_CLR.r, TOUR_ACCENT_CLR.g, TOUR_ACCENT_CLR.b, 0.8)
+    cpTip.accents.left:SetWidth(AW)
+    cpTip.accents.left:SetPoint("TOPLEFT", B, -B); cpTip.accents.left:SetPoint("BOTTOMLEFT", B, B)
+    cpTip.accents.right = cpTip:CreateTexture(nil, "ARTWORK")
+    cpTip.accents.right:SetColorTexture(TOUR_ACCENT_CLR.r, TOUR_ACCENT_CLR.g, TOUR_ACCENT_CLR.b, 0.8)
+    cpTip.accents.right:SetWidth(AW)
+    cpTip.accents.right:SetPoint("TOPRIGHT", -B, -B); cpTip.accents.right:SetPoint("BOTTOMRIGHT", -B, B)
+
+    cpTip.counter = cpTip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    cpTip.counter:SetPoint("TOPLEFT", TOUR_PAD + 4, -TOUR_PAD)
+    cpTip.counter:SetTextColor(0.5, 0.5, 0.5)
+    cpTip.counter:SetJustifyH("LEFT")
+
+    cpTip.title = cpTip:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    cpTip.title:SetPoint("TOPLEFT", cpTip.counter, "BOTTOMLEFT", 0, -2)
+    cpTip.title:SetTextColor(TOUR_TITLE_CLR.r, TOUR_TITLE_CLR.g, TOUR_TITLE_CLR.b)
+    cpTip.title:SetJustifyH("LEFT")
+    cpTip.title:SetWidth(TOUR_MAX_WIDTH - TOUR_PAD * 2 - 4)
+
+    cpTip.text = cpTip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    cpTip.text:SetPoint("TOPLEFT", cpTip.title, "BOTTOMLEFT", 0, -3)
+    cpTip.text:SetTextColor(TOUR_TEXT_CLR.r, TOUR_TEXT_CLR.g, TOUR_TEXT_CLR.b)
+    cpTip.text:SetJustifyH("LEFT")
+    cpTip.text:SetWidth(TOUR_MAX_WIDTH - TOUR_PAD * 2 - 4)
+    cpTip.text:SetSpacing(2)
+
+    cpTip.nextBtn = CreateFrame("Button", nil, cpTip, "UIPanelButtonTemplate")
+    cpTip.nextBtn:SetSize(TOUR_BTN_W, TOUR_BTN_H)
+    cpTip.nextBtn:SetPoint("BOTTOMRIGHT", cpTip, "BOTTOMRIGHT", -TOUR_PAD, TOUR_PAD)
+    cpTip.nextBtn:SetScript("OnClick", function()
+        if lib.info.tourIndex < #TOUR_STOPS_CP then
+            lib:ShowTourStop(lib.info.tourIndex + 1)
+        else
+            lib:EndTour()
+        end
+    end)
+    return cpTip
+end
+
+local function ApplyCPAccent(tooltipPoint)
+    for _, bar in pairs(cpTip.accents) do bar:Hide() end
+    local pt = tooltipPoint:upper()
+    if pt == "CENTER" then for _, bar in pairs(cpTip.accents) do bar:Show() end; return end
+    if pt:find("TOP") then cpTip.accents.top:Show() end
+    if pt:find("BOTTOM") then cpTip.accents.bottom:Show() end
+    if pt:find("LEFT") then cpTip.accents.left:Show() end
+    if pt:find("RIGHT") then cpTip.accents.right:Show() end
+end
+
+-- [ PULSE POOL ]-------------------------------------------------------------------------------------------------------
+local cpPulsePool = {}
+local cpActivePulses = {}
+
+local function CreateCPPulse()
+    local f = CreateFrame("Frame", nil, UIParent)
+    f:SetFrameStrata("TOOLTIP")
+    f:SetFrameLevel(TOUR_PULSE_LEVEL)
+    f.tex = f:CreateTexture(nil, "OVERLAY")
+    f.tex:SetAllPoints()
+    f.tex:SetColorTexture(TOUR_ACCENT_CLR.r, TOUR_ACCENT_CLR.g, TOUR_ACCENT_CLR.b, 0.3)
+    f.ag = f:CreateAnimationGroup()
+    f.ag:SetLooping("BOUNCE")
+    local a = f.ag:CreateAnimation("Alpha")
+    a:SetFromAlpha(1); a:SetToAlpha(0.2); a:SetDuration(0.6); a:SetSmoothing("IN_OUT")
+    f:Hide()
+    return f
+end
+
+local function AcquireCPPulse()
+    local p = table.remove(cpPulsePool) or CreateCPPulse()
+    cpActivePulses[#cpActivePulses + 1] = p
+    return p
+end
+
+local function ReleaseCPPulses()
+    for i = #cpActivePulses, 1, -1 do
+        local p = cpActivePulses[i]
+        p.ag:Stop(); p:Hide()
+        cpPulsePool[#cpPulsePool + 1] = p
+        cpActivePulses[i] = nil
+    end
+end
+
+local function ShowCPPulseOn(anchor)
+    local p = AcquireCPPulse()
+    p:ClearAllPoints(); p:SetAllPoints(anchor)
+    p:SetParent(anchor:GetParent() or UIParent)
+    p:SetFrameStrata("TOOLTIP")
+    p:SetFrameLevel(TOUR_PULSE_LEVEL)
+    p:Show(); p.ag:Play()
+end
+
+local function LayoutCPTooltip(anchor, stop, idx, total)
+    EnsureCpTip()
+    cpTip.counter:SetText(idx .. " / " .. total)
+    cpTip.title:SetText(stop.title)
+    cpTip.text:SetText(stop.text)
+    cpTip.nextBtn:SetText(idx == total and CL.DONE or CL.NEXT)
+    local textH = cpTip.counter:GetStringHeight() + 2 + cpTip.title:GetStringHeight() + 3 + cpTip.text:GetStringHeight()
+    cpTip:SetSize(TOUR_MAX_WIDTH, textH + TOUR_PAD * 2 + TOUR_BTN_GAP + TOUR_BTN_H + TOUR_PAD)
+    cpTip:ClearAllPoints()
+    cpTip:SetPoint(stop.tooltipPoint, anchor, stop.tooltipRel, stop.tpX, stop.tpY)
+    ApplyCPAccent(stop.tooltipPoint)
+    cpTip:Show()
+    ReleaseCPPulses()
+    ShowCPPulseOn(anchor)
+end
+
+-- [ TOUR CONTROL ]-----------------------------------------------------------------------------------------------------
+function lib:ShowTourStop(idx)
+    local stop = TOUR_STOPS_CP[idx]
+    if not stop then self:EndTour(); return end
+    local anchor = stop.anchor()
+    if not anchor or not anchor:IsShown() then
+        if idx < #TOUR_STOPS_CP then self:ShowTourStop(idx + 1) else self:EndTour() end
+        return
+    end
+    self.info.tourIndex = idx
+    LayoutCPTooltip(anchor, stop, idx, #TOUR_STOPS_CP)
+end
+
+function lib:StartTour()
+    self.info.tourActive = true
+    self.info.tourIndex = 0
+    self:ShowTourStop(1)
+end
+
+function lib:EndTour()
+    self.info.tourActive = false
+    self.info.tourIndex = 0
+    if cpTip then cpTip:Hide() end
+    ReleaseCPPulses()
+end
+
+function lib:ToggleTour()
+    if not self.info.tourActive then
+        self:StartTour()
+    elseif self.info.tourIndex < #TOUR_STOPS_CP then
+        self:ShowTourStop(self.info.tourIndex + 1)
+    else
+        self:EndTour()
+    end
+end
+
+function lib:CreateTourButton()
+    if self.info.button then return self.info.button end
+    local btn = CreateFrame("Button", nil, self.ui.frame)
+    btn:SetSize(INFO_BUTTON_SIZE, INFO_BUTTON_SIZE)
+    btn:SetPoint("TOPLEFT", self.ui.frame, "TOPLEFT", 6, -6)
+    btn:SetFrameLevel(self.ui.frame:GetFrameLevel() + 10)
+    btn.Icon = btn:CreateTexture(nil, "ARTWORK")
+    btn.Icon:SetTexture(616343)
+    btn.Icon:SetSize(INFO_BUTTON_SIZE, INFO_BUTTON_SIZE)
+    btn.Icon:SetPoint("CENTER")
+    btn:SetScript("OnEnter", function(self)
+        if not lib:IsOpen() then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(CL.TOUR_TIP, 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    btn:SetScript("OnLeave", HideTooltip)
+    btn:SetScript("OnClick", function()
+        PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+        lib:ToggleTour()
+    end)
+    self.info.button = btn
+    return btn
+end
+
+-- [ PUBLIC API ]-------------------------------------------------------------------------------------------------------
+function lib:Open(options)
+    options = options or {}
+    if self:IsOpen() then
+        self.wasCancelled = true
+        self:CloseFrame()
+        if self:IsOpen() then return false end
+    end
+    if options.tooltip then
+        GameTooltip = options.tooltip
+    else
+        if not self.privateTooltip then
+            self.privateTooltip = CreateFrame("GameTooltip", "LibOrbitColorPickerTooltip", UIParent, "GameTooltipTemplate")
+            self.privateTooltip:SetClampedToScreen(true)
+        end
+        GameTooltip = self.privateTooltip
+    end
+    local tooltip = GameTooltip
+    self.tooltipHide = options.tooltipHide or function() tooltip:Hide() end
+    self.classColor = options.classColor
+    self.wasCancelled = false
+    self.callback = options.callback
+    -- SetColorRGB fires OnColorSelect synchronously; suppress so loading doesn't demote a class pin.
+    self.suppressCallback = true
+
+    local data = options.initialData or options.initialCurve or options.initialColor
+    self.multiPinMode = not options.forceSingleColor
+
+    self.recentColors = options.recentColorsDb or {}
+    wipe(self.pins)
+    if self.multiPinMode then
+        self:LoadFromCurve(data)
+    elseif data then
+        local colorSource = (data.pins and data.pins[1]) and data.pins[1].color or data
+        local pinData = { position = 0.5, color = NormalizeColor(colorSource) }
+        local pinType = (data.pins and data.pins[1] and data.pins[1].type) or data.type
+        if pinType then pinData.type = pinType end
+        self.pins[#self.pins + 1] = pinData
+    end
+
+    self:Initialize()
+
+    self.hasDesaturation = options.hasDesaturation or false
+    self.desaturated = (data and data.desaturated) or false
+    if self.ui.desatCheckbox then self.ui.desatCheckbox:SetChecked(self.desaturated) end
+
+    self.snapshotPins = DeepCopyPins(self.pins)
+    self.snapshotDesaturated = self.desaturated
+    self.snapshotRecent = {}
+    for i = 1, #self.recentColors do self.snapshotRecent[i] = self.recentColors[i] end
+    self.sessionId = (self.sessionId or 0) + 1
+
+    if self.ui.gradientBar then
+        for _, handle in ipairs(self.ui.gradientBar.pinHandles) do handle:Hide() end
+    end
+    self:CreateRecentColorsBar()
+    self:UpdateRecentColors()
+
+    local initialColor = (self.pins[1] and self.pins[1].color) or DEFAULT_COLOR
+    self.ui.colorSelect:SetColorRGBA(initialColor.r, initialColor.g, initialColor.b, initialColor.a or 1)
+    self.suppressCallback = false
+    self:LayoutControls()
+
+    if self.ui.modeTitle then
+        self.ui.modeTitle:SetText(self.multiPinMode and CL.MODE_MULTI or CL.MODE_SINGLE)
+    end
+
+    self:UpdateClassColorSwatch()
+    if self.ui.classSwatch then self.ui.classSwatch:Show() end
+    if self.info.button then self.info.button:Show() end
+
+    self.ui.frame:ClearAllPoints()
+    local a = options.anchor
+    if a and a.frame then
+        self.ui.frame:SetPoint(a.point or "TOPLEFT", a.frame, a.relativePoint or "TOPRIGHT", a.x or 0, a.y or 0)
+    else
+        self.ui.frame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 375, -75)
+    end
+    -- Combat-opened pickers run keyboard-disabled so keybinds aren't swallowed; PLAYER_REGEN_ENABLED restores it.
+    self.ui.frame:EnableKeyboard(not InCombatLockdown())
+    self.ui.frame:Show()
+
+    local sessionId = self.sessionId
+    C_Timer.After(REFRESH_DELAY, function()
+        -- A close or reopen within REFRESH_DELAY invalidates this deferred show.
+        if not lib:IsOpen() or lib.sessionId ~= sessionId then return end
+        if lib.ui.gradientBar then
+            lib.ui.gradientBar:Show()
+            lib.ui.gradientBar:Refresh()
+        end
+        lib:UpdateApplyButtonState()
+        if options.onOpen then options.onOpen(lib) end
+    end)
+    return sessionId
+end
+
+function lib:IsOpen() return self.ui.frame and self.ui.frame:IsShown() end
+
+function lib:GetCheckerboardTexture() return CHECKERBOARD_TEXTURE end
+
+-- Freeze the mixins so stray writes at runtime error immediately instead of corrupting them.
+if table.freeze then
+    table.freeze(GradientBarMixin)
+    table.freeze(ColorAreaMixin)
+end

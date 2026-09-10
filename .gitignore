@@ -1,0 +1,7 @@
+.release/
+.packager/
+.staging/
+**/__pycache__/
+**/*.pyc
+.env
+.env.*

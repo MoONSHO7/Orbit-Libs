@@ -1,0 +1,10 @@
+.env
+.DS_Store
+Thumbs.db
+*.pyc
+__pycache__/
+.vscode/
+.release/
+
+# LibStub is fetched by the packager (external) at build time, not committed.
+LibOrbitGlow-1.0/LibStub/

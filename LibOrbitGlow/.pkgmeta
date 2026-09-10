@@ -1,0 +1,31 @@
+package-as: LibOrbitGlow-1.0
+
+move-folders:
+  LibOrbitGlow-1.0/LibOrbitGlow-1.0: LibOrbitGlow-1.0
+
+externals:
+  LibOrbitGlow-1.0/LibStub:
+    url: https://github.com/wowace-clone/LibStub
+    commit: d0d26a9a58eade74964ea95114ca0ab593271b1b
+
+manual-changelog:
+  filename: .release-notes.md
+  markup-type: markdown
+
+ignore:
+  - tests
+  - .github
+  - .gitignore
+  - .env
+  - .pkgmeta
+  - .packager
+  - .scripts
+  - .gitattributes
+  - LICENSE
+  - LibOrbitGlow-1.0/LibStub/.pkgmeta
+  - LibOrbitGlow-1.0/LibStub/LibStub.toc
+  - LibOrbitGlow-1.0/LibStub/tests
+  - CURSEFORGE.md
+  - "**/README.md"
+
+enable-nolib-creation: no

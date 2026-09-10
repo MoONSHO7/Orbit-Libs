@@ -1,0 +1,32 @@
+package-as: LibOrbitUI-1.0
+
+move-folders:
+  LibOrbitUI-1.0/LibOrbitUI-1.0: LibOrbitUI-1.0
+
+manual-changelog:
+  filename: .release-notes.md
+  markup-type: markdown
+
+ignore:
+  - LICENSE
+  - README.md
+  - LibOrbitUI-1.0.toc
+  - "LibOrbitUI-1.0/*.md"
+  - LibOrbitUI-1.0/Core/README.md
+  - LibOrbitUI-1.0/Rendering/README.md
+  - LibOrbitUI-1.0/Movement/README.md
+  - LibOrbitUI-1.0/Config/README.md
+  - LibOrbitUI-1.0/Config/Widgets/README.md
+  - LibOrbitUI-1.0/Config/Pickers/README.md
+  - LibOrbitUI-1.0/Config/Dialogs/README.md
+  - LibOrbitUI-1.0/Addon/README.md
+  - .github
+  - .packager
+  - .scripts
+  - .pkgmeta
+  - .gitignore
+  - .gitattributes
+  - .stylua.toml
+  - .styluaignore
+
+enable-nolib-creation: no
