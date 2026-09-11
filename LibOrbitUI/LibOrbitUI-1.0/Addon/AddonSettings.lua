@@ -47,6 +47,7 @@ function AddonMixin:ShowSettings(index)
             tabs = tabs,
             color = options.color,
             media = options.media,
+            registerWidgets = options.registerWidgets,
             get = function(key)
                 return self.controller:GetSetting(index, key)
             end,
