@@ -14,7 +14,7 @@ Development addons link directly to that directory:
 | Addon path, relative to the workspace | Link target |
 |---|---|
 | `Orbit/Orbit/Core/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
-| `Orbit-Dock-Portal/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
+| `Orbit-Portal/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 | `Orbit-Compass/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 | `Orbit-StatusWidget/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 
