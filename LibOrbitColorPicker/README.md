@@ -13,6 +13,8 @@ Orbit and Status Widget embed the editor through development junctions to this s
 
 `.pkgmeta` defines the runtime package and excludes documentation and development metadata. A path-filtered workflow releases relevant changes pushed to Orbit-Libs `main` under `LibOrbitColorPicker-MAJOR.MINOR` tags. Its ZIP contains only the Lua, XML, checkerboard and MIT license under `LibOrbitColorPicker-1.0/`; a SHA256 sidecar accompanies it. Other libraries retain separate release histories.
 
+`.scripts/tests/embedded_assets.py` executes the unchanged revision 10 from materialized Orbit, Status and renamed-host paths, both path separators and Latin/CJK locales. It checks checkerboard/license closure and duplicate-copy asset ownership. This supports retaining the existing path contract; native rendering and editor-session verification remain in-game gates.
+
 ## Gotchas
 - Orbit and Status Widget pin a full commit from a completed `LibOrbitColorPicker-*` [GitHub release](https://github.com/MoONSHO7/Orbit-Libs/releases) and select `path: LibOrbitColorPicker/LibOrbitColorPicker-1.0`. Verify publication and runtime assets before updating consumers. Release numbers are independent of the runtime API revision; the monorepo's first picker release is 1.2.
 - API revision 10 accepts explicit tooltip, hide and class-color callbacks, returns a session ID from `Open`, and exposes its checkerboard texture. It has no Orbit global dependency; callers without a tooltip receive a private picker tooltip.
