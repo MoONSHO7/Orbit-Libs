@@ -7,8 +7,7 @@ local MAX_HEIGHT = 300
 local SEARCH_THRESHOLD = 12
 local TEXT_INSET = 8
 local ROW_TEXT_INSET = 10
-local ROW_CHECK_INSET = 8
-local ROW_CHECK_GAP = 4
+local FONT_PREVIEW_SIZE = 14
 local TITLE_COLOR = { 0.8, 0.65, 0.3 }
 
 local function LabelFor(option)
@@ -119,6 +118,7 @@ function Config:CreateDropdown(
     end
 
     local function UpdatePreview()
+        frame.Control.Text:SetFontObject(Constants.UI.LabelFont)
         if frame.dropMultiSelect then
             local count = #frame.dropValue
             if count == 0 then
@@ -137,6 +137,9 @@ function Config:CreateDropdown(
             return
         end
         local option = SelectedOption()
+        if option and option.font then
+            frame.Control.Text:SetFont(option.font, FONT_PREVIEW_SIZE, "")
+        end
         frame.Control.Text:SetText(option and LabelFor(option) or tostring(frame.dropValue))
     end
 
@@ -148,19 +151,11 @@ function Config:CreateDropdown(
                 sorted = false,
                 search = #frame.dropOptions > SEARCH_THRESHOLD,
                 itemText = LabelFor,
-                itemTextLeftInset = function(option, row)
-                    local showCheck = frame.dropMultiSelect and option.title == nil and option.action == nil
-                    if showCheck then
-                        local scale = row:GetEffectiveScale()
-                        return row.Check:GetWidth() + Pixel:Multiple(ROW_CHECK_INSET + ROW_CHECK_GAP, scale)
-                    end
+                itemTextLeftInset = function(_, row)
                     return Pixel:Multiple(ROW_TEXT_INSET, row:GetEffectiveScale())
                 end,
                 createRow = function(rowParent)
                     local row = CreateFrame("Button", nil, rowParent)
-                    row.Check = CreateFrame("CheckButton", nil, row, "UIRadialButtonTemplate")
-                    row.Check:EnableMouse(false)
-                    Pixel:Point(row.Check, "LEFT", ROW_CHECK_INSET, 0)
                     row.Text = row:CreateFontString(nil, "OVERLAY", Constants.UI.LabelFont)
                     Pixel:Point(row.Text, "LEFT", ROW_TEXT_INSET, 0)
                     Pixel:Point(row.Text, "RIGHT", -MediaMenu.ROW_TEXT_RIGHT_INSET, 0)
@@ -175,16 +170,9 @@ function Config:CreateDropdown(
                 renderRow = function(row, option, isSelected)
                     local isTitle = option.title ~= nil
                     local isAction = option.action ~= nil
-                    local showCheck = frame.dropMultiSelect and not isTitle and not isAction
                     row.option = option
-                    row.Check:SetShown(showCheck)
-                    row.Check:SetChecked(showCheck and isSelected == true)
                     row.Text:ClearAllPoints()
-                    if showCheck then
-                        Pixel:Point(row.Text, "LEFT", row.Check, "RIGHT", ROW_CHECK_GAP, 0)
-                    else
-                        Pixel:Point(row.Text, "LEFT", ROW_TEXT_INSET, 0)
-                    end
+                    Pixel:Point(row.Text, "LEFT", ROW_TEXT_INSET, 0)
                     Pixel:Point(row.Text, "RIGHT", -MediaMenu.ROW_TEXT_RIGHT_INSET, 0)
                     row.Text:SetText(isTitle and option.title or LabelFor(option))
                     if isTitle or isAction then
@@ -196,7 +184,9 @@ function Config:CreateDropdown(
                     end
                     row:EnableMouse(not isTitle)
                     if option.font then
-                        row.Text:SetFont(option.font, 14, "")
+                        row.Text:SetFont(option.font, FONT_PREVIEW_SIZE, "")
+                    else
+                        row.Text:SetFontObject(Constants.UI.LabelFont)
                     end
                 end,
                 onSelect = function(option)

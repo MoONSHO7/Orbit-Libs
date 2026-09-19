@@ -1,5 +1,6 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
     <Script file="Core\Bootstrap.lua"/>
+    <Script file="Core\Client.lua"/>
     <Script file="Core\Callbacks.lua"/>
     <Script file="Core\Events.lua"/>
     <Script file="Core\Throttle.lua"/>
@@ -39,6 +40,8 @@
     <Script file="Config\Dialogs\ConfigConfirmPopup.lua"/>
     <Script file="Config\Dialogs\ConfigInputPopup.lua"/>
     <Script file="Config\ConfigSchema.lua"/>
+    <Script file="Config\Dialogs\SettingsCoordinator.lua"/>
+    <Script file="Config\Dialogs\DialogLifecycle.lua"/>
     <Script file="Config\Dialogs\ConfigWindow.lua"/>
     <Script file="Config\Dialogs\ConfigPanel.lua"/>
     <Script file="Config\Dialogs\ConfigDialog.lua"/>

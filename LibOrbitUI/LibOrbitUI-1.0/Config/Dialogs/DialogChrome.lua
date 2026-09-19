@@ -7,7 +7,12 @@ local ChromeMixin = {}
 
 function ChromeMixin:ApplyChrome(frame)
     local background = frame:CreateTexture(nil, "BACKGROUND", nil, -1)
-    background:SetAtlas(CONTAINER_ATLAS)
+    if C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(CONTAINER_ATLAS) then
+        background:SetAtlas(CONTAINER_ATLAS)
+    else
+        local color = self.defaultBackdrop
+        background:SetColorTexture(color.r, color.g, color.b, color.a)
+    end
     background:SetAllPoints(frame)
     return { Background = background }
 end

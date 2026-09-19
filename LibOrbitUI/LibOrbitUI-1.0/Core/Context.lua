@@ -11,6 +11,7 @@ function UI.CreateContext(options)
         runtime = UI.Runtime:Create(options.owner),
         ownsPixel = options.pixel == nil,
         ownsTooltip = options.tooltip == nil,
+        dialogLifecycles = {},
     }
     if options.tooltip then
         assert(options.tooltipHide, "LibOrbitUI borrowed tooltip needs a hide callback")
@@ -25,6 +26,13 @@ function UI.CreateContext(options)
         end
     end
     function context:Destroy()
+        if self.destroyed then
+            return
+        end
+        self.destroyed = true
+        for lifecycle in pairs(self.dialogLifecycles) do
+            lifecycle:Destroy()
+        end
         self.runtime:Destroy()
         if self.ownsPixel then
             self.pixel:Destroy()

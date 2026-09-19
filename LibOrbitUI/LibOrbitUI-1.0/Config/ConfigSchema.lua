@@ -1,5 +1,52 @@
 local _, addon = ...
 local Config = addon.LibOrbitUI.Config
+local CALLBACK_KEYS = {
+    onChange = true,
+    onClick = true,
+    onTabSelected = true,
+    onCopy = true,
+    onReset = true,
+    onDelete = true,
+    callback = true,
+    action = true,
+}
+local VALUE_CONTROLS = { "valueColor", "valueCheckbox", "valueSlider" }
+
+function Config.GuardCallback(callback, isCurrent)
+    return function(...)
+        if isCurrent() then
+            return callback(...)
+        end
+    end
+end
+
+function Config.BindDefinition(definition, isCurrent)
+    local bound = {}
+    for key, value in pairs(definition) do
+        bound[key] = CALLBACK_KEYS[key] and type(value) == "function" and Config.GuardCallback(value, isCurrent)
+            or value
+    end
+    for _, key in ipairs(VALUE_CONTROLS) do
+        if definition[key] then
+            bound[key] = Config.BindDefinition(definition[key], isCurrent)
+        end
+    end
+    local function BindOptions(options)
+        local boundOptions = {}
+        for index, option in ipairs(options) do
+            boundOptions[index] = type(option) == "table" and Config.BindDefinition(option, isCurrent) or option
+        end
+        return boundOptions
+    end
+    if type(definition.options) == "table" then
+        bound.options = BindOptions(definition.options)
+    elseif type(definition.options) == "function" then
+        bound.options = function()
+            return BindOptions(definition.options())
+        end
+    end
+    return bound
+end
 
 function Config.ResolveValue(spec, control)
     local value

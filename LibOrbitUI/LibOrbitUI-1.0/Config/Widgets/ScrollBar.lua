@@ -39,7 +39,12 @@ function ScrollBarMixin:Attach(scrollFrame, opts)
 
     local function Update()
         local range = scrollFrame:GetVerticalScrollRange()
+        if bar.scrollTarget then
+            bar.scrollTarget = math.min(bar.scrollTarget, range)
+        end
         if range <= SETTLE_EPSILON then
+            animator:Hide()
+            bar.scrollTarget = nil
             if scrollFrame:GetVerticalScroll() > range then
                 scrollFrame:SetVerticalScroll(0)
             end
@@ -86,6 +91,18 @@ function ScrollBarMixin:Attach(scrollFrame, opts)
         animator:Show()
     end
 
+    function bar:StopScrolling()
+        animator:Hide()
+        self.scrollTarget, self.dragY = nil, nil
+        self:SetScript("OnUpdate", nil)
+    end
+
+    function bar:SetScrollPosition(position)
+        self:StopScrolling()
+        scrollFrame:SetVerticalScroll(math.max(0, math.min(position, scrollFrame:GetVerticalScrollRange())))
+        Update()
+    end
+
     local function OnWheel(_, delta)
         local current = scrollFrame:GetVerticalScroll()
         local from = bar.scrollTarget or current
@@ -119,6 +136,7 @@ function ScrollBarMixin:Attach(scrollFrame, opts)
         Update()
         if settled then
             animator:Hide()
+            bar.scrollTarget = nil
         end
     end)
 
@@ -126,6 +144,9 @@ function ScrollBarMixin:Attach(scrollFrame, opts)
     scrollFrame:SetScript("OnMouseWheel", OnWheel)
     scrollFrame:SetScript("OnScrollRangeChanged", Update)
     scrollFrame:SetScript("OnSizeChanged", LayoutBar)
+    scrollFrame:HookScript("OnHide", function()
+        bar:StopScrolling()
+    end)
     bar:SetScript("OnMouseWheel", OnWheel)
     bar:SetScript("OnDragStart", function(self)
         local _, cursorY = GetCursorPosition()

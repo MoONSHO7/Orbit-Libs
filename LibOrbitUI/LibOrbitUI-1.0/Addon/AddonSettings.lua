@@ -48,6 +48,7 @@ function AddonMixin:ShowSettings(index)
             color = options.color,
             media = options.media,
             registerWidgets = options.registerWidgets,
+            editModePolicy = options.settingsEditModePolicy,
             get = function(key)
                 return self.controller:GetSetting(index, key)
             end,
@@ -77,8 +78,6 @@ function AddonMixin:ShowSettings(index)
             end,
         })
         self.dialogs[index] = dialog
-        EventRegistry:RegisterCallback("EditMode.Enter", dialog.Refresh, dialog)
-        EventRegistry:RegisterCallback("EditMode.Exit", dialog.Refresh, dialog)
     end
     if dialog:IsShown() then
         dialog:Refresh()

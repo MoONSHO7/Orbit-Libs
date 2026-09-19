@@ -138,6 +138,22 @@ function PanelMixin:RenderControl(container, definition, getValue, onChange, onC
     return control
 end
 
+function PanelMixin:Release(panel)
+    self:Invalidate(panel)
+    self.context.tooltipHide()
+    local layout = self.layout
+    if layout.promptOptions then
+        layout:HidePrompts()
+    end
+    layout:Reset(panel.Header)
+    layout:Reset(panel.Content)
+    for _, content in pairs(panel.Tabs) do
+        layout:Reset(content)
+    end
+    layout:Reset(panel.Footer)
+    panel:Hide()
+end
+
 function PanelMixin:Render(panel, options)
     assert(panel.configPanelOwner == self, "LibOrbitUI panel belongs to another renderer")
     local layout, constants = self.layout, self.constants

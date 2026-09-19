@@ -1,7 +1,7 @@
 # LibOrbitUI
 
 ## Description
-The shared UI library for Orbit and independently installed addons, targeting WoW 12.1.0 and Lua 5.1. Its source and release metadata live in the Orbit-Libs repository.
+The shared UI library for Orbit and independently installed addons, targeting WoW 12.1.0 and Lua 5.1. Its source and release metadata live in the Orbit-Libs repository. API 1.6 additionally identifies Retail and Forever for consumer-owned compatibility policy; Forever rendering and native behavior still require client verification.
 
 ## Purpose
 Maintain movement, the settings window and renderer, common widgets, pixel rendering and cancellable work once. Consumers supply feature behavior, storage, localization and optional advanced editing services.
@@ -28,8 +28,8 @@ Orbit and standalone Portal use the same window chrome, tabs, scrolling, layout,
 
 ## Gotchas
 - Addon repositories ignore their local library links; this repository tracks the actual source. Keep the library project available during development.
-- Consumer `.pkgmeta` externals use `MoONSHO7/Orbit-Libs`, a completed `LibOrbitUI-*` release's full commit SHA and `path: LibOrbitUI/LibOrbitUI-1.0`. API 1.5 is independent of the package version; the monorepo's first UI release is 1.1.
-- Settings and UI state remain private to each addon despite sharing source. The library does not own SavedVariables or automatically join Blizzard Save/Revert transactions.
+- Consumer `.pkgmeta` externals use `MoONSHO7/Orbit-Libs`, a completed `LibOrbitUI-*` release's full commit SHA and `path: LibOrbitUI/LibOrbitUI-1.0`. API 1.8 is independent of the package version; all four consumers need the coordinator/lifecycle release before distributed delivery is complete.
+- Settings and services remain private to each addon. Only the protocol-1 settings-window coordinator is shared across embeddings; it owns visibility claims, not SavedVariables or Blizzard Save/Revert transactions.
 - Color editing uses optional LibOrbitColorPicker and LibStub; addons without editable swatches need neither. Revision 10 supplies explicit tooltip/class-color context and session-safe editing; the default independent provider disables editing with older revisions.
 - [All Rights Reserved](LICENSE). The runtime directory includes the same license notice for embedded distributions; public source availability does not grant a reuse license.
 - Packaging checks do not certify rendering, secure actions or taint; verify the consuming addons in WoW.

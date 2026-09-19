@@ -23,6 +23,13 @@ function Layout:RegisterControlPool(typeName, poolName, cleanup)
 end
 
 function Layout:ReleaseControl(control)
+    if control.OrbitType == "EditBox" then
+        control.EditBox:SetScript("OnEditFocusLost", nil)
+        control.EditBox:SetScript("OnEnterPressed", nil)
+        control.EditBox:SetScript("OnEscapePressed", nil)
+        control.EditBox:SetScript("OnTextChanged", nil)
+        control.EditBox:ClearFocus()
+    end
     UI.Config.ReleaseValueControls(control)
     control:Hide()
     control:SetParent(nil)

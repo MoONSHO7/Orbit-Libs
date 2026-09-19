@@ -20,7 +20,7 @@ Maintain shared movement, configuration controls and rendering utilities once, w
 | [Config/Dialogs](Config/Dialogs/README.md) | Window chrome, panels, tabbed settings and prompts. |
 | [Addon](Addon/README.md) | Product boot, movement and settings composition, plus an optional real-host bridge. |
 
-Consumers enter through `CreateContext`, `Controller` or `Addon`, then call the same exported API regardless of source folder. Runtime state belongs to each consumer; differently pinned embeddings cannot replace another consumer's state. API 1.5 adds `Addon`'s optional `registerWidgets(layout)` hook for consumer-owned settings controls.
+Consumers enter through `CreateContext`, `Controller` or `Addon`, then call the same exported API regardless of source folder. Settings and services belong to each consumer. API 1.6's immutable `Client` record supplies client identity; products own eligibility and readiness. API 1.7's shared protocol-1 `SettingsCoordinator` arbitrates Edit Mode settings visibility without sharing product state. API 1.8 adds consumer-local `DialogLifecycle`, context-owned dialog shutdown, guarded schema callbacks and complete panel release. `Config.CreateDialog` installs both owners; custom shells opt in with their own exit policy. `registerWidgets(layout)` remains the consumer-owned control hook.
 
 Orbit, Portal, Compass and Status Widget consume this source through development directory links. Packaging materializes regular files, preserves nested paths and includes `LICENSE`; module READMEs are development documentation.
 

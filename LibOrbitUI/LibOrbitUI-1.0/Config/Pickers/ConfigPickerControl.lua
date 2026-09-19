@@ -1,7 +1,5 @@
 local _, addon = ...
 local Config = addon.LibOrbitUI.Config
-
--- [ PICKER CONTROL ]---------------------------------------------------------------------------------------------------
 local HEIGHT = 24
 local BG = { 0.08, 0.08, 0.1, 1 }
 local BORDER = { 0, 0, 0, 1 }
@@ -9,8 +7,7 @@ local BORDER_HOVER = { 0.3, 0.3, 0.3, 1 }
 local BORDER_OPEN = { 1, 0.82, 0, 0.65 }
 local ACCENT = { 1, 0.82, 0, 1 }
 local ARROW = "common-dropdown-icon-next"
-local ARROW_SIZE = 10
-local ARROW_INSET = 8
+local ARROW_SIZE, ARROW_INSET = 10, 8
 local ARROW_DOWN, ARROW_UP = -math.pi / 2, math.pi / 2
 local TEXT_GAP = 3
 
@@ -19,7 +16,7 @@ local function RefreshState(control)
     if control.isOpen then
         control:SetBackdropBorderColor(unpack(BORDER_OPEN))
         control.Arrow:SetVertexColor(unpack(ACCENT))
-    elseif control.isHovered then
+    elseif control.hovered then
         control:SetBackdropBorderColor(unpack(BORDER_HOVER))
         control.Arrow:SetVertexColor(1, 1, 1, 1)
     else
@@ -30,48 +27,49 @@ end
 
 function Config:CreatePickerControl(frame, opts)
     local Pixel = self.configOptions.pixel
-    local WHITE8x8 = self.configOptions.constants.Texture.White
+    local white = self.configOptions.constants.Texture.White
     opts = opts or {}
     Pixel:Enforce(frame)
     local control = CreateFrame("Button", nil, frame, "BackdropTemplate")
     Pixel:Enforce(control)
-    control:SetBackdrop({
-        bgFile = WHITE8x8,
-        edgeFile = WHITE8x8,
-        edgeSize = Pixel:Multiple(1, control:GetEffectiveScale()),
-    })
+    control:SetBackdrop({ bgFile = white, edgeFile = white, edgeSize = Pixel:Multiple(1, control:GetEffectiveScale()) })
     control:SetBackdropColor(unpack(BG))
     control:SetBackdropBorderColor(unpack(BORDER))
     control:SetHeight(opts.height or HEIGHT)
-
     control.Arrow = control:CreateTexture(nil, "OVERLAY")
     Pixel:Enforce(control.Arrow, { centerAnchored = true })
     control.Arrow:SetAtlas(ARROW)
     control.Arrow:SetSize(ARROW_SIZE, ARROW_SIZE)
-    control.Arrow:SetRotation(ARROW_DOWN)
     Pixel:Point(control.Arrow, "RIGHT", -ARROW_INSET, 0)
-
-    control.Text = control:CreateFontString(nil, "OVERLAY", opts.fontObject)
+    control.Text = control:CreateFontString(nil, "OVERLAY", opts.fontObject or "GameFontHighlight")
     Pixel:Point(control.Text, "RIGHT", control.Arrow, "LEFT", -TEXT_GAP, 0)
     control.Text:SetJustifyH(opts.justify or "LEFT")
     control.Text:SetWordWrap(false)
-
     control:SetScript("OnClick", function()
-        if control.isOpen and control.Popup then
+        if control.isOpen then
             control.Popup:Hide()
         else
             frame:ShowDropdown()
         end
     end)
-    control:SetScript("OnEnter", function(self)
-        self.isHovered = true
-        RefreshState(self)
+    control:SetScript("OnEnter", function()
+        control.hovered = true
+        RefreshState(control)
     end)
-    control:SetScript("OnLeave", function(self)
-        self.isHovered = false
-        RefreshState(self)
+    control:SetScript("OnLeave", function()
+        control.hovered = false
+        RefreshState(control)
     end)
-
+    control:SetScript("OnEnable", RefreshState)
+    control:SetScript("OnDisable", RefreshState)
+    control:SetScript("OnHide", function()
+        control.hovered = false
+        if control.Popup then
+            control.Popup:Hide()
+        end
+        RefreshState(control)
+    end)
+    RefreshState(control)
     frame.Control = control
     return control
 end

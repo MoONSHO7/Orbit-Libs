@@ -3,14 +3,8 @@ local UI = addon.LibOrbitUI
 local Config = UI.Config
 
 local function ReleaseControls(dialog)
-    dialog.context.tooltipHide()
-    if dialog.layout.promptOptions then
-        dialog.layout:HidePrompts()
-    end
-    dialog.renderer:Invalidate(dialog.OrbitPanel)
-    dialog.layout:Reset(dialog.OrbitPanel.Header)
-    dialog.layout:Reset(dialog.OrbitPanel.Content)
-    dialog.layout:Reset(dialog.OrbitPanel.Footer)
+    dialog.viewGeneration = dialog.viewGeneration + 1
+    dialog.renderer:Release(dialog.OrbitPanel)
     wipe(dialog.controls)
 end
 
@@ -30,6 +24,7 @@ local function DialogConstants(spec)
 end
 
 function Config.CreateDialog(context, spec)
+    assert(not context.destroyed, "LibOrbitUI context is destroyed")
     assert(type(spec.title) == "string" and type(spec.closeLabel) == "string")
     assert(type(spec.tabs) == "table" and #spec.tabs > 0, "LibOrbitUI dialog needs tabs")
     local constants = DialogConstants(spec)
@@ -70,6 +65,7 @@ function Config.CreateDialog(context, spec)
     })
     dialog.context, dialog.spec, dialog.layout = context, spec, layout
     dialog.controls, dialog.tabs = {}, {}
+    dialog.viewGeneration = 0
     dialog.renderer = UI.ConfigPanel:Create(layoutContext, layout, constants, layout.scrollBar)
     dialog.OrbitPanel = dialog.renderer:CreateFrame(dialog)
     dialog.body, dialog.scroll = dialog.OrbitPanel.Content, dialog.OrbitPanel.ScrollFrame
@@ -83,8 +79,13 @@ function Config.CreateDialog(context, spec)
     end
 
     function dialog:Refresh()
-        if not self:IsShown() then
+        if not self.lifecycle:IsOpen() then
             return
+        end
+        self.viewGeneration = self.viewGeneration + 1
+        local generation = self.viewGeneration
+        local function IsCurrent()
+            return self.lifecycle:IsOpen() and self.viewGeneration == generation
         end
         local descriptor = self.tabs[self.activeTab].descriptor
         local controls = type(descriptor.controls) == "function" and descriptor.controls() or descriptor.controls
@@ -95,7 +96,9 @@ function Config.CreateDialog(context, spec)
                 tabs = labels,
                 activeTab = descriptor.label,
                 onTabSelected = function(label)
-                    self:SelectTab(tabIDs[label])
+                    if IsCurrent() then
+                        self:SelectTab(tabIDs[label])
+                    end
                 end,
             },
         }
@@ -108,17 +111,18 @@ function Config.CreateDialog(context, spec)
             controls = schema,
             cache = false,
             renderControl = function(container, control)
-                local normalized = {}
-                for key, value in pairs(control) do
-                    normalized[key] = value
-                end
+                local normalized = Config.BindDefinition(control, IsCurrent)
                 normalized.text = control.text or control.label
                 local widget = self.renderer:RenderControl(container, normalized, function()
                     return Config.ResolveValue(spec, control)
                 end, function(value)
-                    Config.CommitValue(spec, control, value)
+                    if IsCurrent() then
+                        Config.CommitValue(spec, control, value)
+                    end
                 end, function()
-                    control.onClick(self, control)
+                    if IsCurrent() then
+                        control.onClick(self, control)
+                    end
                 end)
                 if control.type == "tabs" then
                     for index, button in ipairs(widget._tabButtons) do
@@ -136,11 +140,15 @@ function Config.CreateDialog(context, spec)
                 end
                 for _, action in ipairs(actions or {}) do
                     buttons[#buttons + 1] = layout:CreateButton(footer, action.label, function()
-                        action.onClick(self)
+                        if IsCurrent() then
+                            action.onClick(self)
+                        end
                     end)
                 end
                 buttons[#buttons + 1] = layout:CreateButton(footer, spec.closeLabel, function()
-                    self:Hide()
+                    if IsCurrent() then
+                        self:Hide()
+                    end
                 end)
                 return self.renderer:LayoutFooter(footer, buttons)
             end,
@@ -153,8 +161,13 @@ function Config.CreateDialog(context, spec)
         self.scroll:SetVerticalScroll(0)
         self:Refresh()
     end
+    dialog.lifecycle = UI.DialogLifecycle:Create(context, dialog, {
+        editModePolicy = spec.editModePolicy,
+        onClose = ReleaseControls,
+        onRefresh = dialog.Refresh,
+    })
+    UI.SettingsCoordinator:Register(dialog)
     dialog:HookScript("OnShow", dialog.Refresh)
-    dialog:HookScript("OnHide", ReleaseControls)
     dialog:SelectTab(spec.tabs[1].id)
     return dialog
 end
