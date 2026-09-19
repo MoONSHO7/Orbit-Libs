@@ -336,4 +336,6 @@ MIT. See [LICENSE](LICENSE).
 
 ## Development checks
 
-Run `python tests/test_glows.py` with `lupa` (Lua 5.1). The tests exercise registration, embedded upgrades, retained icon engines, variant paths, texture ownership/reuse, resizing and cleanup. Verify actual art, layering and aura restrictions in WoW through the consuming addon's displays and previews.
+Revision 13 resolves missing native icon atlases to the bundled tracer flipbook. Classic probes its native texture pair and uses a separately keyed flipbook when those textures are unavailable or the host requires owned objects; stopping Classic releases that actual renderer. Public style names and saved choices stay stable. UI/gameplay feature presence is not used as an asset test.
+
+Run `python tests/test_glows.py` with `lupa` (Lua 5.1). Tests cover registry/upgrade behavior, bundled paths, missing/present/late native atlases, Classic fallback ownership, resizing and cleanup. The tracer fallback is reused at icon aspect ratios; verify its real appearance, layering and aura restrictions through consuming displays/previews. Forever native acceptance remains pending.

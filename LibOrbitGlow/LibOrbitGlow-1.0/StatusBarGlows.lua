@@ -1,5 +1,5 @@
 local lib = LibStub("LibOrbitGlow-1.0", true)
-local VERSION = 12
+local VERSION = 13
 if not lib or lib.minorVersion ~= VERSION or lib.statusBarMinor == VERSION then
     return
 end

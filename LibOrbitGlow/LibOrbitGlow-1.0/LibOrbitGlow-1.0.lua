@@ -1,5 +1,5 @@
 local MAJOR_VERSION = "LibOrbitGlow-1.0"
-local MINOR_VERSION = 12
+local MINOR_VERSION = 13
 local lib = LibStub:NewLibrary(MAJOR_VERSION, MINOR_VERSION)
 if not lib then
     return
@@ -28,6 +28,23 @@ local BUTTON_GLOW_TEXTURES = { "spark", "innerGlow", "innerGlowOver", "outerGlow
 local THIN_ATLAS = "RotationHelper_Ants_Flipbook_2x"
 local THICK_ATLAS = "RotationHelper-ProcLoopBlue-Flipbook-2x"
 local MEDIUM_ATLAS = "UI-HUD-ActionBar-Proc-Loop-Flipbook"
+local LIB_PATH =
+    assert(debugstack(1, 1, 0):match("Interface.*LibOrbitGlow%-1%.0[\\/]"), "LibOrbitGlow: invalid runtime path")
+local FALLBACK_TEXTURE = LIB_PATH .. "Textures\\dispel-tracer-25.tga"
+local CLASSIC_TEXTURE = [[Interface\SpellActivationOverlay\IconAlert]]
+local CLASSIC_ANTS_TEXTURE = [[Interface\SpellActivationOverlay\IconAlertAnts]]
+local classicArtAvailable
+
+local function HasClassicArt()
+    if classicArtAvailable == nil then
+        local probe = GLOW_PARENT:CreateTexture()
+        classicArtAvailable = probe:SetTexture(CLASSIC_TEXTURE) ~= false
+        classicArtAvailable = (probe:SetTexture(CLASSIC_ANTS_TEXTURE) ~= false) and classicArtAvailable
+        probe:SetTexture(nil)
+        probe:Hide()
+    end
+    return classicArtAvailable
+end
 
 -- [ UTILITIES ] ---------------------------------------------------------------
 local function GetColorRGBA(colorTable)
@@ -147,18 +164,30 @@ lib.Flipbook = {}
 
 function lib.Flipbook:Show(frame, options)
     options = options or {}
+    local atlas = options.atlas or MEDIUM_ATLAS
+    local isTexture = options.isTexture or false
+    local rows, cols, frames = options.rows, options.cols, options.frames
+    if not isTexture then
+        local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
+        if info then
+            rows, cols, frames = rows or info.flipBookRows, cols or info.flipBookColumns, frames or info.flipBookFrames
+        else
+            atlas, isTexture = FALLBACK_TEXTURE, true
+            rows, cols, frames = PROC_ROWS, PROC_COLS, PROC_FRAMES
+        end
+    end
     local r, g, b, a = GetColorRGBA(options.color)
     local nameKey = "_LibGlowFlipbook" .. (options.key or "Default")
     -- Visual signature excluding colour: a match on a live frame means a re-show only re-tints, so a glow can be re-driven every event with no teardown and animation restart.
-    local sig = (options.atlas or "")
+    local sig = atlas
         .. "|"
-        .. (options.isTexture and "T" or "A")
+        .. (isTexture and "T" or "A")
         .. "|"
-        .. (options.rows or "")
+        .. (rows or "")
         .. "|"
-        .. (options.cols or "")
+        .. (cols or "")
         .. "|"
-        .. (options.frames or "")
+        .. (frames or "")
         .. "|"
         .. (options.speed or "")
         .. "|"
@@ -201,20 +230,7 @@ function lib.Flipbook:Show(frame, options)
             return
         end
     end
-    local atlas = options.atlas or "UI-HUD-ActionBar-Proc-Loop-Flipbook"
-    local isTexture = options.isTexture or false
-    local rows = options.rows
-    local cols = options.cols
-    local frames = options.frames
     local speed = options.speed or 1.0
-    if not isTexture then
-        local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(atlas)
-        if info then
-            rows = rows or info.flipBookRows
-            cols = cols or info.flipBookColumns
-            frames = frames or info.flipBookFrames
-        end
-    end
     rows = rows or DEFAULT_FLIPBOOK_ROWS
     cols = cols or DEFAULT_FLIPBOOK_COLS
     frames = frames or (rows * cols)
@@ -855,6 +871,17 @@ end
 
 function lib.Button:Show(frame, options)
     options = options or {}
+    if options.owned or not HasClassicArt() then
+        local fallback = {}
+        for name, value in pairs(options) do
+            fallback[name] = value
+        end
+        fallback.atlas, fallback.isTexture = FALLBACK_TEXTURE, true
+        fallback.rows, fallback.cols, fallback.frames = PROC_ROWS, PROC_COLS, PROC_FRAMES
+        fallback.key = "Classic:" .. (options.key or "Default")
+        lib.Flipbook:Show(frame, fallback)
+        return
+    end
     local r, g, b, a = GetColorRGBA(options.color)
     local freq = options.frequency or BUTTON_DEFAULT_FREQ
     local throttle = (freq > 0) and (BUTTON_FREQ_SCALAR / freq * BUTTON_DEFAULT_THROTTLE) or BUTTON_DEFAULT_THROTTLE
@@ -907,6 +934,7 @@ function lib.Button:Show(frame, options)
 end
 
 function lib.Button:Hide(frame, key)
+    lib.Flipbook:Hide(frame, "Classic:" .. (key or "Default"))
     local nameKey = "_LibGlowButton" .. (key or "Default")
     if frame[nameKey] then
         if frame[nameKey].animIn and frame[nameKey].animIn:IsPlaying() then

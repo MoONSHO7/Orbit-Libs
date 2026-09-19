@@ -113,6 +113,56 @@ class GlowTests(unittest.TestCase):
             end
         ''')
 
+    def test_missing_atlas_uses_bundled_frames_and_releases_actual_renderer(self):
+        self.lua.execute('''
+            C_Texture={GetAtlasInfo=function() return nil end}
+            local host=NewObject()
+            lib.Show(host,"Thin",{key="fallback",rows=99,cols=99,frames=999})
+            local glow=host._LibGlowFlipbookfallback
+            local texture=glow.textures[1]
+            assert(texture.path:find("Textures\\\\dispel-tracer-25.tga",1,true))
+            assert(texture.flipbookAnim.rows==6 and texture.flipbookAnim.cols==5 and texture.flipbookAnim.frames==30)
+            lib.Hide(host,"Thin","fallback")
+            assert(not host._LibGlowFlipbookfallback and not texture.animGroup.playing)
+        ''')
+
+    def test_available_atlas_is_preserved_and_late_availability_recovers(self):
+        self.lua.execute('''
+            local available=false
+            C_Texture={GetAtlasInfo=function() return available and {flipBookRows=4,flipBookColumns=4,flipBookFrames=16} end}
+            local host=NewObject()
+            lib.Show(host,"Medium",{key="recover"})
+            local glow=host._LibGlowFlipbookrecover
+            available=true
+            lib.Show(host,"Medium",{key="recover"})
+            assert(host._LibGlowFlipbookrecover==glow)
+            assert(glow.textures[1].atlas=="UI-HUD-ActionBar-Proc-Loop-Flipbook")
+            assert(glow.textures[1].flipbookAnim.frames==16)
+            lib.Hide(host,"Medium","recover")
+        ''')
+
+    def test_missing_classic_art_and_owned_classic_use_separate_fallback_key(self):
+        self.lua.execute('''
+            local methods=getmetatable(NewObject())
+            methods.SetTexture=function(self,path)
+                self.path=path
+                return not path or not path:find("SpellActivationOverlay",1,true)
+            end
+            local host=NewObject()
+            lib.Show(host,"Classic",{key="same"})
+            lib.Show(host,"Thin",{key="same"})
+            assert(host["_LibGlowFlipbookClassic:same"] and host._LibGlowFlipbooksame)
+            lib.Hide(host,"Classic","same")
+            assert(not host["_LibGlowFlipbookClassic:same"] and host._LibGlowFlipbooksame)
+            lib.Hide(host,"Thin","same")
+            local restricted=NewObject(); restricted.denyGeometry=true
+            lib.Show(restricted,"Classic",{key="owned",owned=true,hostWidth=40,hostHeight=40})
+            local glow=restricted["_LibGlowFlipbookClassic:owned"]
+            assert(glow.owned)
+            lib.Hide(restricted,"Classic","owned")
+            assert(glow.parked and not glow.textures[1].animGroup.playing)
+        ''')
+
     def test_geometry_and_all_baseline_assets(self):
         for name in ("tracer", "pinneon"):
             for width, ratio in ((100, "25"), (160, "40")):
@@ -309,14 +359,14 @@ class GlowTests(unittest.TestCase):
         for file in ("LibOrbitGlow-1.0.lua", "StatusBarGlows.lua"):
             self.lua.execute((LIB / file).read_text(encoding="utf-8"))
         self.lua.execute('''
-            assert(lib.minorVersion == 12 and lib.statusBarMinor == 12)
+        assert(lib.minorVersion == 13 and lib.statusBarMinor == 13)
             assert(lib.StatusBar == savedStatusBar and lib:GetStatusBarGlowInfo('consumer') == savedDefinition)
             assert(select(3, savedStatusBar:Resolve('consumer', 160, 40, nil, {kind = 'rounded', radius = 8})) == 'own')
             savedRevision = lib.statusBarRevision
         ''')
-        older = (LIB / "StatusBarGlows.lua").read_text(encoding="utf-8").replace("local VERSION = 12", "local VERSION = 11", 1)
+        older = (LIB / "StatusBarGlows.lua").read_text(encoding="utf-8").replace("local VERSION = 13", "local VERSION = 11", 1)
         self.lua.execute(older)
-        self.lua.execute('assert(lib.statusBarMinor == 12 and lib.statusBarRevision == savedRevision)')
+        self.lua.execute('assert(lib.statusBarMinor == 13 and lib.statusBarRevision == savedRevision)')
 
     def test_equal_geometry_has_deterministic_shape_selection(self):
         self.lua.execute('''
