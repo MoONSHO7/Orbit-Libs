@@ -19,7 +19,7 @@ import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FIRST_VERSIONS = {"LibOrbitUI": "1.1", "LibOrbitColorPicker": "1.2", "LibOrbitGlow": "1.8"}
+FIRST_VERSIONS = {"LibOrbitUI": "1.1", "LibOrbitColorPicker": "1.2", "LibOrbitGlow": "1.8", "LibOrbitSearch": "1.0"}
 LIBSTUB_COMMIT = "d0d26a9a58eade74964ea95114ca0ab593271b1b"
 LIBSTUB_URL = "https://github.com/wowace-clone/LibStub"
 

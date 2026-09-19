@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.env
+.vscode/
+.idea/
+.release/
+.packager/
+.release-notes.md
+/LibOrbitSearch-1.0.toc

@@ -1,0 +1,24 @@
+package-as: LibOrbitSearch-1.0
+
+move-folders:
+  LibOrbitSearch-1.0/LibOrbitSearch-1.0: LibOrbitSearch-1.0
+
+manual-changelog:
+  filename: .release-notes.md
+  markup-type: markdown
+
+ignore:
+  - LICENSE
+  - README.md
+  - LibOrbitSearch-1.0.toc
+  - "LibOrbitSearch-1.0/*.md"
+  - .github
+  - .packager
+  - .scripts
+  - .pkgmeta
+  - .gitignore
+  - .gitattributes
+  - .stylua.toml
+  - .styluaignore
+
+enable-nolib-creation: no

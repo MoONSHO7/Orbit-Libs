@@ -1,13 +1,13 @@
 # Library release tooling
 
 ## Description
-Independent release versions and validated packages for the three libraries in this repository.
+Independent release versions and validated packages for each library in this repository.
 
 ## Purpose
 Publish one library from a monorepo commit without shipping sibling projects or letting another library's tags change its package version.
 
 ## Implementation
-`release-library.py` prepares an isolated Git snapshot of one committed subproject, with a numeric local packaging tag. BigWigs reads that snapshot's `.pkgmeta`; the public `LibOrbitUI-X.Y`, `LibOrbitColorPicker-X.Y` or `LibOrbitGlow-X.Y` tag points to the real monorepo commit. Initial monorepo versions continue at 1.1, 1.2 and 1.8 respectively.
+`release-library.py` prepares an isolated Git snapshot of one committed subproject, with a numeric local packaging tag. BigWigs reads that snapshot's `.pkgmeta`; the public `LibOrbitUI-X.Y`, `LibOrbitColorPicker-X.Y`, `LibOrbitGlow-X.Y` or `LibOrbitSearch-X.Y` tag points to the real monorepo commit. Initial monorepo versions continue at 1.1, 1.2 and 1.8; Search starts at 1.0.
 
 The helper verifies the complete runtime file set, Lua 5.1/XML/TOC load closure, licenses, artwork and the pinned LibStub external before any upload, then normalizes ZIP ordering, timestamps and modes for reproducible retries. SHA256 sidecars accompany every ZIP. Glow also supplies `release.json` for addon clients. `source.json` identifies the source commit and runtime subdirectory.
 

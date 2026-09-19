@@ -1,0 +1,27 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <Script file="LibOrbitSearch-1.0.lua"/>
+    <Script file="Fold.lua"/>
+    <Script file="BoundedCache.lua"/>
+    <Script file="NativeContract.lua"/>
+    <Script file="Registry.lua"/>
+    <Script file="IndexManager.lua"/>
+    <Script file="Recents.lua"/>
+    <Script file="ItemKeywords.lua"/>
+    <Script file="MountTypeTags.lua"/>
+    <Script file="IDLookup.lua"/>
+    <Script file="Matcher.lua"/>
+    <Script file="ProviderSessions.lua"/>
+    <Script file="Merge.lua"/>
+    <Script file="Search.lua"/>
+    <Script file="Sources\Bags.lua"/>
+    <Script file="Sources\Equipped.lua"/>
+    <Script file="Sources\Spellbook.lua"/>
+    <Script file="Sources\Toys.lua"/>
+    <Script file="Sources\Mounts.lua"/>
+    <Script file="Sources\Pets.lua"/>
+    <Script file="Sources\Heirlooms.lua"/>
+    <Script file="Sources\Professions.lua"/>
+    <Script file="Sources\Currencies.lua"/>
+    <Script file="Sources\Macros.lua"/>
+    <Script file="Finalize.lua"/>
+</Ui>
