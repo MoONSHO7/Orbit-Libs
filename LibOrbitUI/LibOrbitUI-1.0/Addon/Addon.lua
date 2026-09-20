@@ -14,6 +14,9 @@ function AddonMixin:IsEditMode()
 end
 
 function AddonMixin:IsEnabled()
+    if self.options.alwaysEnabled then
+        return true
+    end
     if self.options.bridge then
         return self.options.bridge.IsEnabled()
     end
@@ -21,6 +24,9 @@ function AddonMixin:IsEnabled()
 end
 
 function AddonMixin:SetEnabled(enabled)
+    if self.options.alwaysEnabled then
+        return
+    end
     if self.options.bridge then
         self.options.bridge.SetEnabled(enabled)
     else
@@ -143,7 +149,9 @@ function UI.Addon:Create(options)
                     options.writeStore(data)
                 end
             end
-            RegisterSettings(app)
+            if not options.bridge then
+                RegisterSettings(app)
+            end
             RegisterCommands(app)
             events:UnregisterEvent("ADDON_LOADED")
         elseif event == "PLAYER_LOGIN" then

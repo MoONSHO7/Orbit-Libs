@@ -34,6 +34,9 @@ function ControllerMixin:IsActive()
 end
 
 function ControllerMixin:IsEnabled()
+    if self.alwaysEnabled then
+        return true
+    end
     return self:GetSetting(1, "Enabled") ~= false
 end
 
@@ -208,7 +211,10 @@ table.freeze(ControllerMixin)
 function UI.Controller:Create(spec)
     assert(type(spec.name) == "string" and spec.name ~= "", "LibOrbitUI controller name is required")
     local defaults = spec.defaults or {}
-    if defaults.Enabled == nil then
+    local alwaysEnabled = spec.alwaysEnabled == true
+    if alwaysEnabled then
+        defaults.Enabled = nil
+    elseif defaults.Enabled == nil then
         defaults.Enabled = true
     end
     local indexed = spec.indexDefaults or {}
@@ -222,6 +228,7 @@ function UI.Controller:Create(spec)
         store = spec.store or UI.SettingsStore:Create(defaults, indexed, spec.settingTypes),
         eventBus = spec.events or UI.Events:Create(),
         shouldApplyVisibility = spec.shouldApplyVisibility,
+        alwaysEnabled = alwaysEnabled,
         generation = 0,
         active = false,
     }, ControllerMixin)

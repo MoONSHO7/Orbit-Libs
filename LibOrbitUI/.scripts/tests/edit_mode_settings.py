@@ -7,8 +7,9 @@ from lupa.lua51 import LuaRuntime
 
 RUNTIME = Path(__file__).resolve().parents[2] / "LibOrbitUI-1.0"
 BOOT = r'''
-mock = { combat = false, hooks = 0, clears = 0, errors = {}, frames = {}, timers = {}, writes = 0 }
+mock = { combat = false, hooks = 0, clears = 0, errors = {}, frames = {}, timers = {}, writes = 0, categories = {} }
 UIParent = {}
+SlashCmdList = {}
 C_InstanceEncounter = { IsEncounterInProgress = function() return false end }
 table.freeze = function(value) return value end
 function Mixin(target, mixin)
@@ -67,8 +68,11 @@ function NewWindow()
         end
     end
     function frame:SetVerticalScroll() end
+    function frame:SetSize() end
+    function frame:SetText(value) self.text = value end
     function frame:SetShown(value) if value then self:Show() else self:Hide() end end
     function frame:RegisterEvent(event) self.events[event] = true end
+    function frame:UnregisterEvent(event) self.events[event] = nil end
     function frame:UnregisterAllEvents() wipe(self.events) end
     function frame:SetParent(parent) self.parent = parent end
     function frame:ClearAllPoints() end
@@ -79,9 +83,9 @@ function NewWindow()
     return frame
 end
 function CreateFrame() return NewWindow() end
-function FireEvent(event)
+function FireEvent(event, ...)
     for _, frame in ipairs(mock.frames) do
-        if frame.events[event] and frame.scripts.OnEvent then frame.scripts.OnEvent(frame, event) end
+        if frame.events[event] and frame.scripts.OnEvent then frame.scripts.OnEvent(frame, event, ...) end
     end
 end
 function Tick()
@@ -96,6 +100,14 @@ C_Timer = { NewTimer = function(_, callback)
     return timer
 end }
 C_Timer.NewTicker = C_Timer.NewTimer
+Settings = {
+    RegisterCanvasLayoutCategory = function(panel, title)
+        local category = { panel = panel, title = title }
+        table.insert(mock.categories, category)
+        return category
+    end,
+    RegisterAddOnCategory = function() end,
+}
 EditModeManagerFrame = { active = false, shown = false }
 function EditModeManagerFrame:IsShown() return self.shown end
 function EditModeManagerFrame:IsEditModeActive() return self.active end
@@ -309,9 +321,90 @@ class EditModeSettings(unittest.TestCase):
             function app:IsEnabled() return true end
             function app:IsEditMode() return EditModeManagerFrame:IsEditModeActive() end
             Enter(); app:ShowSettings(1); app:ShowSettings(2)
+            assert(#app.dialogs[2].controls == 1)
+            assert(app.dialogs[2].controls[1].definition.label == "Enabled")
             assert(not app.dialogs[1]:IsShown() and app.dialogs[2]:IsShown())
             app:ShowSettings(1)
             assert(app.dialogs[1]:IsShown() and not app.dialogs[2]:IsShown())
+        ''')
+
+    def test_hosted_addon_settings_omit_the_enabled_control(self):
+        self.lua.execute("first.LibOrbitUI.AddonMixin = {}")
+        self.load("Addon/AddonSettings.lua", self.lua.globals().first)
+        self.lua.execute('''
+            local app = Mixin({
+                ready = true, dialogs = {}, context = { name = "App", tooltipHide = function() end },
+                options = { name = "App", title = "Settings", bridge = {},
+                    labels = { close = "Close", enabled = "Enabled" },
+                    tabs = function()
+                        return { { id = "main", label = "Main", controls = {
+                            { type = "checkbox", label = "Product" },
+                        } } }
+                    end,
+                },
+            }, first.LibOrbitUI.AddonMixin)
+            function app:IsEditMode() return false end
+            app:ShowSettings(1)
+            assert(#app.dialogs[1].controls == 1)
+            assert(app.dialogs[1].controls[1].definition.label == "Product")
+        ''')
+
+    def test_always_enabled_addon_does_not_consult_an_enable_setting_or_render_controls(self):
+        self.load("Addon/Addon.lua", self.lua.globals().first)
+        self.load("Addon/AddonSettings.lua", self.lua.globals().first)
+        self.lua.execute('''
+            local reads, writes = 0, 0
+            local app = Mixin({
+                ready = true, dialogs = {}, context = { name = "App", tooltipHide = function() end },
+                controller = {
+                    GetSetting = function() reads = reads + 1 end,
+                    SetSetting = function() writes = writes + 1 end,
+                },
+                options = { name = "App", title = "Compass", alwaysEnabled = true,
+                    labels = { close = "Close" },
+                    tabs = function()
+                        return { { id = "main", label = "Main", controls = {
+                            { type = "checkbox", label = "Product" },
+                        } } }
+                    end,
+                },
+            }, first.LibOrbitUI.AddonMixin)
+            function app:IsEditMode() return false end
+            assert(app:IsEnabled())
+            app:SetEnabled(false)
+            assert(reads == 0 and writes == 0)
+            app:ShowSettings(1)
+            app:ShowSettings(2)
+            assert(#app.dialogs[1].controls == 1 and #app.dialogs[2].controls == 1)
+            assert(app.dialogs[1].controls[1].definition.label == "Product")
+            assert(app.dialogs[2].controls[1].definition.label == "Product")
+        ''')
+
+    def test_hosted_addon_boot_omits_the_blizzard_category(self):
+        self.load("Addon/Addon.lua", self.lua.globals().first)
+        self.lua.execute('''
+            local function Options(name, bridge)
+                return {
+                    addonName = name,
+                    name = name,
+                    title = name,
+                    bridge = bridge,
+                    controller = {},
+                    context = { pixel = { Point = function() end } },
+                    store = { Initialize = function(_, data) return data end },
+                    readStore = function() return {} end,
+                    writeStore = function() end,
+                    labels = { settings = "Settings" },
+                    slashKey = string.upper(name),
+                    slash = { "/" .. string.lower(name) },
+                }
+            end
+            first.LibOrbitUI.Addon:Create(Options("Hosted", {}))
+            first.LibOrbitUI.Addon:Create(Options("Standalone", nil))
+            FireEvent("ADDON_LOADED", "Hosted")
+            assert(#mock.categories == 0)
+            FireEvent("ADDON_LOADED", "Standalone")
+            assert(#mock.categories == 1 and mock.categories[1].title == "Standalone")
         ''')
 
     def test_edit_open_closes_on_exit_but_direct_open_survives(self):

@@ -22,8 +22,9 @@ function AddonMixin:ShowSettings(index)
         local first = tabs[1]
         local controls = first.controls
         first.controls = function()
-            local result = {
-                {
+            local result = {}
+            if not options.bridge and not options.alwaysEnabled then
+                result[1] = {
                     type = "checkbox",
                     label = options.labels.enabled,
                     default = true,
@@ -33,8 +34,8 @@ function AddonMixin:ShowSettings(index)
                     onChange = function(enabled)
                         self:SetEnabled(enabled)
                     end,
-                },
-            }
+                }
+            end
             for _, control in ipairs(type(controls) == "function" and controls() or controls) do
                 result[#result + 1] = control
             end
