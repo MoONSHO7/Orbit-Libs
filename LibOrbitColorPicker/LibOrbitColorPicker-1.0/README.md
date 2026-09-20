@@ -1,7 +1,7 @@
 # LibOrbitColorPicker-1.0
 
 ## Description
-LibStub color picker with a saturation/brightness square, hue and opacity rails, a gradient bar, drag-and-drop pins, class-color and recent-color swatches, and a built-in guided tour. Supports single-color and multi-color (gradient) modes under the MIT license.
+LibStub color picker with a saturation/brightness square, hue and opacity rails, a gradient bar, drag-and-drop pins, class-color and recent-color swatches, and a built-in guided tour. Class pins use the player's class icon; single-color and multi-color (gradient) modes are supported under the MIT license.
 
 ## Purpose
 Gives every Orbit consumer one picker for both static colors and progress-mapped color curves (health bars, timer text), instead of Blizzard's single-color `ColorPickerFrame`.
@@ -26,11 +26,11 @@ Callback result: apply with pins → `{ curve = <native ColorCurve>, pins = { { 
 Modes: `forceSingleColor = true` keeps exactly one pin (swatch drags replace it); multi-color allows unlimited pins — drag swatches onto the bar to add, drag handles to move, right-click to remove, arrow keys nudge (shift = fine).
 
 ## Gotchas
-- Revision 10 accepts `tooltip`, `tooltipHide` and `classColor` in `Open(options)` and returns a session ID (or false if an old callback opened a replacement session). Without these options it uses a private tooltip and Blizzard's player class color; it never reads Orbit. Borrowed tooltip/context state is released before closing callbacks, and late hover/drag callbacks cannot revive it.
+- Revision 11 accepts `tooltip`, `tooltipHide` and `classColor` in `Open(options)` and returns a session ID (or false if an old callback opened a replacement session). Without these options it uses a private tooltip and Blizzard's player class color; it never reads Orbit. Borrowed tooltip/context state is released before closing callbacks, and late hover/drag callbacks cannot revive it.
 - **Persist `pins` (and `desaturated`), never `curve`** — `curve` is a transient native object rebuilt from pins on each open, a convenience for immediate use only. Reopen by passing the saved `{ pins = ... }` back as `initialData`.
 - Branch on `wasCancelled` and discard the cancel payload; the picker has already rolled its own state back, including the recent-colors history (recents commit only on apply).
 - Clearing all pins delivers `nil` — every consumer must supply its own default-color fallback.
-- `type = "class"` pins resolve to the player's current class color. In single-color mode a manual edit (square, hue rail, hex) demotes the pin to a plain color so the picked value is honored verbatim; an opacity-only change does not demote (class pins render at full alpha). The demotion test is an RGB comparison against the pin, not "an event fired" — the opacity rail fires the same event.
+- `type = "class"` pins resolve to the player's current class color and render the native current-class icon in their handle and drop preview; ordinary pins keep their colour fill. In single-color mode a manual edit (square, hue rail, hex) demotes the pin to a plain color so the picked value is honored verbatim; an opacity-only change does not demote (class pins render at full alpha). The demotion test is an RGB comparison against the pin, not "an event fired" — the opacity rail fires the same event.
 - The colour area and the lone single-mode pin are two stores of one value. Anything that mutates the pin from outside the widget — swatch drops, class drops — must call `SyncColorSelectToPin` to push it back, or the two silently diverge and whichever the consumer reads last wins.
 - HSV conversion is hand-rolled rather than `C_ColorUtil`: its documented achromatic contract returns hue `-1`, which would make the hue thumb jump to red every time the colour passes through grey or black. The widget retains the last real hue instead.
 - `SetGradient` direction: `HORIZONTAL` is min→left, max→right; `VERTICAL` is min→**bottom**, max→top. The hue rail's six segments and the square's two fades both depend on this — flip one and the render inverts.

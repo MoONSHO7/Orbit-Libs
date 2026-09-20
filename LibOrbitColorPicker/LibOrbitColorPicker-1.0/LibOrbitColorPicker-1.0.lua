@@ -1,5 +1,5 @@
 -- [ LibOrbitColorPicker-1.0 ]------------------------------------------------------------------------------------------
-local MAJOR, MINOR = "LibOrbitColorPicker-1.0", 10
+local MAJOR, MINOR = "LibOrbitColorPicker-1.0", 11
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end
 
@@ -136,6 +136,12 @@ local function GetCurrentClassColor()
     return color and { r = color.r, g = color.g, b = color.b, a = 1 } or DEFAULT_COLOR
 end
 
+local function GetCurrentClassAtlas()
+    local _, class = UnitClass("player")
+    if not class or issecretvalue(class) then return nil end
+    return GetClassAtlas(class)
+end
+
 local function NormalizeColor(c)
     if not c then return { r = 1, g = 1, b = 1, a = 1 } end
     if c.GetRGBA then
@@ -214,8 +220,26 @@ local function CreatePinVisual(parent, alpha)
     frame.Circle:SetPoint("CENTER", frame.CircleBorder, "CENTER", 0, 0)
     frame.Circle:SetTexture(WHITE_TEXTURE)
 
+    frame.ClassIcon = frame:CreateTexture(nil, "ARTWORK")
+    frame.ClassIcon:SetAllPoints(frame.Circle)
+    frame.ClassIcon:Hide()
+
     if alpha and alpha < 1 then frame:SetAlpha(alpha) end
     return frame
+end
+
+local function SetPinVisual(frame, pinType, color)
+    local classAtlas = pinType == "class" and GetCurrentClassAtlas()
+    if classAtlas then
+        frame.Circle:Hide()
+        frame.ClassIcon:SetAtlas(classAtlas)
+        frame.ClassIcon:Show()
+        return
+    end
+
+    frame.ClassIcon:Hide()
+    frame.Circle:SetColorTexture(color.r, color.g, color.b, color.a or 1)
+    frame.Circle:Show()
 end
 
 -- [ GRADIENT BAR MIXIN ]-----------------------------------------------------------------------------------------------
@@ -320,7 +344,7 @@ function GradientBarMixin:RefreshPinHandles()
         handle:ClearAllPoints()
         handle:SetPoint("BOTTOM", self.SegmentContainer, "TOP", (pin.position - 0.5) * barWidth, 0)
         local resolved = ResolveClassColorPin(pin)
-        handle.Circle:SetColorTexture(resolved.r, resolved.g, resolved.b, resolved.a or 1)
+        SetPinVisual(handle, pin.type, resolved)
         handle:SetFrameStrata("TOOLTIP")
         handle:SetFrameLevel(PIN_HANDLE_FRAME_LEVEL)
         -- Keyboard state lives per-handle (its own OnEnter/OnLeave); reused handles persist it.
@@ -359,6 +383,7 @@ function lib:CreatePinHandle(gradientBar)
     handle.Stem = visual.Stem
     handle.CircleBorder = visual.CircleBorder
     handle.Circle = visual.Circle
+    handle.ClassIcon = visual.ClassIcon
 
     handle:SetScript("OnEnter", function(self)
         if not lib:IsOpen() or not self.pinData then return end
@@ -624,7 +649,7 @@ function lib:ShowGhostPin()
     local position = ClampPosition((x - barLeft) / barWidth)
     self.ui.ghostPin:ClearAllPoints()
     self.ui.ghostPin:SetPoint("BOTTOM", self.ui.gradientBar.SegmentContainer, "TOP", (position - 0.5) * barWidth, 0)
-    self.ui.ghostPin.Circle:SetVertexColor(self.drag.color.r, self.drag.color.g, self.drag.color.b, self.drag.color.a or 1)
+    SetPinVisual(self.ui.ghostPin, self.drag.type, self.drag.color)
     self.ui.ghostPin:Show()
 end
 
