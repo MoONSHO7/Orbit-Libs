@@ -316,6 +316,7 @@ class EditModeSettings(unittest.TestCase):
             local app = Mixin({
                 ready = true, dialogs = {}, context = { name = "App", tooltipHide = function() end },
                 options = { name = "App", title = "Settings", labels = { close = "Close", enabled = "Enabled" },
+                    isPreferredItem = function(name) return name == "Orbit UI" end,
                     tabs = function() return { { id = "main", label = "Main", controls = {} } } end },
             }, first.LibOrbitUI.AddonMixin)
             function app:IsEnabled() return true end
@@ -324,6 +325,8 @@ class EditModeSettings(unittest.TestCase):
             assert(#app.dialogs[2].controls == 1)
             assert(app.dialogs[2].controls[1].definition.label == "Enabled")
             assert(not app.dialogs[1]:IsShown() and app.dialogs[2]:IsShown())
+            assert(app.dialogs[2].spec.isPreferredItem("Orbit UI"))
+            assert(not app.dialogs[2].spec.isPreferredItem("Expressway"))
             app:ShowSettings(1)
             assert(app.dialogs[1]:IsShown() and not app.dialogs[2]:IsShown())
         ''')

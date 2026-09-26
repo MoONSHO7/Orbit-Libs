@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIRST_VERSIONS = {"LibOrbitUI": "1.1", "LibOrbitColorPicker": "1.2", "LibOrbitGlow": "1.8", "LibOrbitSearch": "1.0"}
 LIBSTUB_COMMIT = "d0d26a9a58eade74964ea95114ca0ab593271b1b"
 LIBSTUB_URL = "https://github.com/wowace-clone/LibStub"
+CURSE_VERSION_TYPES = {"mainline": 517, "forever": 88568}
 
 
 def run(*args, cwd=None, env=None, binary=False):
@@ -188,6 +189,43 @@ def check_archive(plan, work, archive):
     return hashlib.sha256(archive.read_bytes()).hexdigest()
 
 
+def game_metadata(plan, files):
+    runtime = plan["runtime"]
+    toc = files[f"{runtime}/{runtime}.toc"].decode("utf-8-sig")
+    headers = re.findall(r"^## Interface:\s*([^\r\n]+)", toc, re.MULTILINE)
+    if len(headers) != 1:
+        raise ValueError("Packaged TOC must declare exactly one Interface header")
+    values = [value.strip() for value in headers[0].split(",")]
+    if any(not re.fullmatch(r"[1-9][0-9]*", value) for value in values):
+        raise ValueError("Packaged Interface versions must be positive integers")
+    interfaces = list(map(int, values))
+    if len(interfaces) != len(set(interfaces)):
+        raise ValueError("Packaged Interface versions must be unique")
+    metadata = []
+    for interface in interfaces:
+        if interface // 10000 == 12:
+            flavor = "mainline"
+        elif interface // 1000 == 16:
+            flavor = "forever"
+        else:
+            raise ValueError(f"Unsupported packaged Interface version: {interface}")
+        metadata.append({"flavor": flavor, "interface": interface})
+    return metadata
+
+
+def curse_version_ids(metadata, versions):
+    version_ids = []
+    for item in metadata:
+        interface = item["interface"]
+        version = f"{interface // 10000}.{interface // 100 % 100}.{interface % 100}"
+        game_type = CURSE_VERSION_TYPES[item["flavor"]]
+        matches = [entry["id"] for entry in versions if entry["name"] == version and entry["gameVersionTypeID"] == game_type]
+        if len(matches) != 1:
+            raise ValueError(f"CurseForge must expose exactly one {item['flavor']} {version} game version")
+        version_ids.append(matches[0])
+    return version_ids
+
+
 def verify(plan, work):
     archives = list((work / "release").glob("*.zip"))
     if len(archives) != 1:
@@ -210,7 +248,7 @@ def verify(plan, work):
     source = dict(plan, archive=archive.name, sha256=checksum, runtimePath=plan["library"] + "/" + plan["runtime"])
     save(work / "release" / "source.json", source)
     if plan["library"] == "LibOrbitGlow":
-        save(work / "release" / "release.json", {"releases": [{"name": plan["runtime"], "version": plan["version"], "filename": archive.name, "nolib": False, "metadata": [{"flavor": "mainline", "interface": 120100}]}]})
+        save(work / "release" / "release.json", {"releases": [{"name": plan["runtime"], "version": plan["version"], "filename": archive.name, "nolib": False, "metadata": game_metadata(plan, files)}]})
     save(work / "verified.json", source)
     print(f"Verified {archive.name}: {checksum}")
 
@@ -358,12 +396,10 @@ def curse_upload(plan, work):
         raise ValueError("Prior CurseForge upload has no completion receipt; reconcile that upload before retrying")
     verify_published(plan, work)
     versions = curse_request("GET", "/api/game/wow/versions")
-    version_ids = [entry["id"] for entry in versions if entry["name"] == "12.1.0" and entry["gameVersionTypeID"] == 517]
-    if len(version_ids) != 1:
-        raise ValueError("CurseForge must expose exactly one retail 12.1.0 game version")
+    archive = work / "release" / verified["archive"]
+    version_ids = curse_version_ids(game_metadata(plan, archive_files(archive.read_bytes())), versions)
     metadata = {"displayName": plan["version"], "gameVersions": version_ids, "releaseType": "release", "changelogType": "markdown", "changelog": (work / "stage" / ".release-notes.md").read_text(encoding="utf-8")}
     boundary = "OrbitLibrary" + uuid.uuid4().hex
-    archive = work / "release" / verified["archive"]
     body = (
         f'--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\n\r\n'.encode()
         + json.dumps(metadata).encode()

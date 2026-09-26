@@ -10,7 +10,7 @@ Share previews and selection interactions without embedding consumer catalog, th
 `ConfigPickerControl.lua` owns Orbit's flat dark control, compact arrow and open/hover border. `MediaMenu.lua` owns the matching flat popup, catalog filtering, selection, positioning and dismissal. Its fixed search header sits above a virtualized scroll child; the shared `ScrollBar.lua` owns wheel and drag movement. Consumers retain the closed control's text, texture and animated swatch and supply pooled menu previews. Color/curve constructors use the installed provider; font/texture constructors consume caller media services.
 
 ## Gotchas
-- Media services supply `list`, `fetch`, `isValid`, defaults and a localized None label. The library does not discover or persist consumer catalogs.
+- Media services supply `list`, `fetch`, `isValid`, defaults and a localized None label. A consumer `isPreferredItem` predicate keeps matching choices alphabetized above a non-selectable divider; the library does not discover or persist consumer catalogs.
 - Missing color editing support leaves previews visible with editing disabled; provider/session ownership prevents stale writes after a control is recycled.
 - Consumers supply editable authored color records and class-color policy, including transparent-color previews.
 - Popups parent to `UIParent` to escape settings scroll clipping, anchor to their control and copy its effective scale on open/refresh. Screen clamping is the only outer constraint. `ConfigPickerControl` closes the detached popup on control hide, including inherited panel hides; never rely on popup parent visibility for cleanup.

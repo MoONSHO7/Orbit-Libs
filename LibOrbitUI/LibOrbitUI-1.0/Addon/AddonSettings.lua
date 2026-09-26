@@ -48,6 +48,7 @@ function AddonMixin:ShowSettings(index)
             tabs = tabs,
             color = options.color,
             media = options.media,
+            isPreferredItem = options.isPreferredItem,
             registerWidgets = options.registerWidgets,
             editModePolicy = options.settingsEditModePolicy,
             get = function(key)
