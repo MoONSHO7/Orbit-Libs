@@ -19,6 +19,7 @@ Keep window chrome and settings behavior consistent while consumers supply produ
 
 ## Gotchas
 - Prompt names must be unique across layouts; localized labels are `accept`, `cancel`, `import` and `close`, supplied as strings or providers.
+- Prompt layout explicitly shows its accept button: `CreateButton` can return a hidden pooled control, and showing its parent does not restore that child's own visibility.
 - `HidePrompts` clears fields, callbacks and focus. Closing or recycling invalidates the writer before another consumer can reuse the interaction.
 - Tab IDs and localized labels must be unique. Conditional content rebuilds on open/tab refresh; panel sizing callbacks cannot outlive their view.
 - Orbit supplies profile/theme bindings and `manual` lifecycle policy, retaining its accepted-session/suspension rules while using shared panel release. Its profile cache policy is not a shared default.

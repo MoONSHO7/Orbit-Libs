@@ -15,6 +15,8 @@ Run `python .scripts/tests/edit_mode_settings.py` from the LibOrbitUI wrapper di
 
 `python .scripts/tests/controller_settings.py` loads the real SettingsStore and Controller in Lua 5.1. It verifies always-on controllers remove the Enabled declaration, report their fixed policy without a store read and reject later writes, while ordinary controllers retain the default setting contract.
 
+`python .scripts/tests/prompt_buttons.py` runs the real button factory, layout recycling and confirmation owner with fresh and recycled buttons. It checks visible accept/cancel actions, callback replacement, single acceptance and cancellation without a write.
+
 ## Gotchas
 - These simulations do not certify WoW focus, rendering, protected operations or taint. After `/reload`, switch between Compass's two editors, Portal, Status, Orbit and a Blizzard frame; compare direct settings with Edit Mode openings, exit/suspend, enter combat, reopen and check BugSack. Repeat without Orbit, including a picker or focused input during close.
 - The runtime XML loads coordination/lifecycle before ConfigDialog. Orbit's `check-library-api.py` rejects packages missing API 1.8 or its required owners; published consumer pins still require a verified library release.
