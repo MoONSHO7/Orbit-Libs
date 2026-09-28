@@ -5,7 +5,6 @@ local DIALOG_HEIGHT = 150
 local DIALOG_LEVEL = 200
 local TITLE_OFFSET = 20
 local CLOSE_OFFSET = -2
-local ESC_RESTORE_DELAY = 0.05
 
 UI.ConfigWindow = {}
 
@@ -68,22 +67,7 @@ function UI.ConfigWindow:Create(context, options)
         dialog:Hide()
     end)
     if options.escapeClose ~= false then
-        UISpecialFrames[#UISpecialFrames + 1] = options.name
-        if not InCombatLockdown() then
-            dialog:SetPropagateKeyboardInput(true)
-        end
-        dialog:SetScript("OnKeyDown", function(self, key)
-            if key ~= "ESCAPE" or InCombatLockdown() then
-                return
-            end
-            self:SetPropagateKeyboardInput(false)
-            self:Hide()
-            C_Timer.After(ESC_RESTORE_DELAY, function()
-                if not InCombatLockdown() then
-                    self:SetPropagateKeyboardInput(true)
-                end
-            end)
-        end)
+        UI.EscapeClose:Attach(dialog)
     end
     dialog:HookScript("OnHide", function(self)
         self:StopMovingOrSizing()

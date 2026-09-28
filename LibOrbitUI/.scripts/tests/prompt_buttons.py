@@ -7,7 +7,10 @@ from lupa.lua51 import LuaRuntime
 RUNTIME = Path(__file__).resolve().parents[2] / "LibOrbitUI-1.0"
 
 HARNESS = r'''
-addon = {LibOrbitUI = {Config = {ReleaseValueControls = function() end}}}
+addon = {LibOrbitUI = {
+    Config = {ReleaseValueControls = function() end},
+    EscapeClose = {Attach = function() end},
+}}
 UISpecialFrames = {}
 NineSliceUtil = {ApplyLayoutByName = function() end}
 function Frame(parent)

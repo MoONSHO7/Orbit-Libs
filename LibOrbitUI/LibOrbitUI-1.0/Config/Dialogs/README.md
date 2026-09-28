@@ -15,7 +15,7 @@ Keep window chrome and settings behavior consistent while consumers supply produ
 
 `ConfigDialog` captures a new view generation before every render and invalidates it before close cleanup. `Config.GuardCallback`/`BindDefinition` reject expired writes, actions and nested value/dropdown callbacks without changing caller schemas. `ConfigPanel:Release` invalidates deferred sizing and releases header, content, cached tabs, footer and layout prompts. Context destruction destroys registered lifecycles before shared services; `dialog.lifecycle:Destroy()` releases one shell's subscriptions and prevents reopening it.
 
-`ConfigConfirmPopup.lua` installs lazy confirmation and input prompts through `Config.InstallPrompts(layout, {name, labels})`. `ConfigInputPopup.lua` adds text-transfer dialogs; consumers own validation, import and serialization. Product dialogs accept `spec.prompts`, `spec.color` and `spec.media`; closing releases these child interactions.
+`ConfigWindow.lua` and the prompt frames use Core `EscapeClose`; they never register addon globals in `UISpecialFrames`. `ConfigConfirmPopup.lua` installs lazy confirmation and input prompts through `Config.InstallPrompts(layout, {name, labels})`. `ConfigInputPopup.lua` adds text-transfer dialogs; consumers own validation, import and serialization. Product dialogs accept `spec.prompts`, `spec.color` and `spec.media`; closing releases these child interactions.
 
 ## Gotchas
 - Prompt names must be unique across layouts; localized labels are `accept`, `cancel`, `import` and `close`, supplied as strings or providers.

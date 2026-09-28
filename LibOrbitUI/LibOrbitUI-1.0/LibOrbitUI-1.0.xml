@@ -11,6 +11,7 @@
     <Script file="Rendering\Text.lua"/>
     <Script file="Rendering\TextPosition.lua"/>
     <Script file="Core\Runtime.lua"/>
+    <Script file="Core\EscapeClose.lua"/>
     <Script file="Core\Context.lua"/>
     <Script file="Movement\Geometry.lua"/>
     <Script file="Rendering\GridMath.lua"/>

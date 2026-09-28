@@ -98,7 +98,7 @@ function Config.CreatePromptFrame(layout, suffix, width, justify)
         self.acceptBtn:SetScript("OnClick", nil)
         self.cancelBtn:SetScript("OnClick", nil)
     end)
-    UISpecialFrames[#UISpecialFrames + 1] = name
+    UI.EscapeClose:Attach(frame)
     return frame
 end
 

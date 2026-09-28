@@ -17,9 +17,11 @@ Run `python .scripts/tests/edit_mode_settings.py` from the LibOrbitUI wrapper di
 
 `python .scripts/tests/prompt_buttons.py` runs the real button factory, layout recycling and confirmation owner with fresh and recycled buttons. It checks visible accept/cancel actions, callback replacement, single acceptance and cancellation without a write.
 
+`python .scripts/tests/escape_close.py` loads the shipped API 1.9 owner. It verifies local Escape consumption, custom close ownership, combat rejection, asynchronous propagation restore and the absence of taint-sensitive global close registration anywhere in the runtime.
+
 ## Gotchas
 - These simulations do not certify WoW focus, rendering, protected operations or taint. After `/reload`, switch between Compass's two editors, Portal, Status, Orbit and a Blizzard frame; compare direct settings with Edit Mode openings, exit/suspend, enter combat, reopen and check BugSack. Repeat without Orbit, including a picker or focused input during close.
-- The runtime XML loads coordination/lifecycle before ConfigDialog. Orbit's `check-library-api.py` rejects packages missing API 1.8 or its required owners; published consumer pins still require a verified library release.
+- The runtime XML loads coordination/lifecycle before ConfigDialog. Orbit's `check-library-api.py` rejects packages missing API 1.9 or its required owners; published consumer pins still require a verified library release.
 
 ## References
 [Dialog contract](../LibOrbitUI-1.0/Config/Dialogs/README.md), [library project](../README.md).
