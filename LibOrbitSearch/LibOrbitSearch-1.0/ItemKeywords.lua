@@ -39,7 +39,7 @@ function ItemKeywords.Build(itemRef, isQuestItem)
     local _, _, _, _, _, itemType, itemSubType, _, equipLoc, _, _, _, _, bindType, _, _, isCraftingReagent =
         GetItemInfo(itemRef)
     if not itemType then
-        return table.concat(parts, " ")
+        return table.concat(parts, " "), true
     end
     parts[#parts + 1] = itemType
     if itemSubType and itemSubType ~= "" and itemSubType ~= itemType then

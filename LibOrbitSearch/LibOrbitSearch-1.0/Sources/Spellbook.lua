@@ -10,8 +10,8 @@ local Spellbook = {
     kind = "spellbook",
     events = {
         "SPELLS_CHANGED",
-        "PLAYER_SPECIALIZATION_CHANGED",
-        "UNIT_PET",
+        { event = "PLAYER_SPECIALIZATION_CHANGED", unit = "player" },
+        { event = "UNIT_PET", unit = "player" },
         "SKILL_LINES_CHANGED",
         "LEARNED_SPELL_IN_TAB",
     },

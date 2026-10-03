@@ -314,5 +314,246 @@ class ClientContracts(unittest.TestCase):
         ''')
 
 
+ITEM_SOURCE_SETUP = r'''
+mock.bags={{id=11,link="item:11"}}
+mock.items={ ["item:11"]={name="needle bag"}, [88]={name="needle heirloom"} }
+mock.requests={};mock.builds={}
+C_Item.RequestLoadItemDataByID=function(id) mock.requests[id]=(mock.requests[id] or 0)+1 end
+GetInventoryItemLink=function(_,slot) return slot==1 and "item:11" or nil end
+GetInventoryItemID=function(_,slot) return slot==1 and 11 or nil end
+GetInventoryItemTexture=function() return 1 end
+PlayerHasToy=function() return true end
+C_ToyBox={GetNumFilteredToys=function() return 1 end,GetToyFromIndex=function() return 77 end,
+    GetToyInfo=function() return 77,"needle toy",1 end}
+C_Heirloom={GetHeirloomItemIDs=function() return {88} end,PlayerHasHeirloom=function() return true end,
+    GetHeirloomInfo=function() return "needle heirloom",1 end}
+for _,kind in ipairs({"bags","equipped","toys","heirlooms"}) do
+    local source=lib._indexSources[kind];local build=source.Build
+    source.Build=function(self) mock.builds[kind]=(mock.builds[kind] or 0)+1;return build(self) end
+end
+search=lib:NewSearch({kinds={{kind="bags",label="bags"},{kind="equipped",label="equipped"},
+    {kind="toys",label="toys"},{kind="heirlooms",label="heirlooms"}},
+    onIndexUpdated=function() mock.updates=(mock.updates or 0)+1 end})
+search:Enable();search:SetOpen(true)
+'''
+
+
+class SourceItemLoading(unittest.TestCase):
+    def setUp(self):
+        self.lua = runtime(True)
+        self.lua.execute(ITEM_SOURCE_SETUP)
+
+    def test_ready_sources_ignore_unrelated_completion_bursts_without_retiring_rows(self):
+        self.lua.execute('''
+            local rows=search:Query("needle",options)
+            assert(#rows==4 and next(mock.requests)==nil)
+            for index=1,65 do FireEvent("GET_ITEM_INFO_RECEIVED",1000+index,true) end
+            FlushTimers()
+            for _,row in ipairs(rows) do assert(search:IsEntryCurrent(row)) end
+            for _,kind in ipairs({"bags","equipped","toys","heirlooms"}) do
+                assert(mock.builds[kind]==1 and not lib._dirty[kind] and not lib._sourceItemPending[kind],kind)
+            end
+            assert(not mock.updates and #search:Query("needle",options)==4)
+        ''')
+
+    def test_only_sources_waiting_on_the_completed_id_rebuild_once(self):
+        self.lua.execute('''
+            mock.items["item:11"]=nil
+            GetInventoryItemLink=function() return nil end
+            local rows=search:Query("needle",options)
+            assert(mock.requests[11]==1 and lib._sourceItemPending.bags)
+            FireEvent("GET_ITEM_INFO_RECEIVED",999,true)
+            assert(not lib._dirty.bags)
+            FireEvent("GET_ITEM_INFO_RECEIVED",11,false)
+            assert(not lib._dirty.bags and lib._sourceItemPending.bags)
+            mock.items["item:11"]={name="needle recovered"}
+            for index=1,65 do FireEvent("GET_ITEM_INFO_RECEIVED",11,true) end
+            assert(lib._dirty.bags and not lib._dirty.toys and not lib._dirty.heirlooms)
+            for _,row in ipairs(rows) do assert(search:IsEntryCurrent(row)) end
+            FlushTimers()
+            assert(mock.builds.bags==2 and mock.builds.equipped==1 and mock.builds.toys==1)
+            assert(mock.builds.heirlooms==1 and mock.updates==1 and not lib._sourceItemPending.bags)
+            search:Query("needle",options);assert(mock.requests[11]==1)
+        ''')
+
+    def test_shared_missing_item_requests_are_deduplicated_across_sources(self):
+        self.lua.execute('''
+            mock.items["item:11"]=nil
+            search:Query("needle",options)
+            assert(mock.requests[11]==1 and lib._sourceItemPending.bags and lib._sourceItemPending.equipped)
+            mock.items["item:11"]={name="needle recovered"}
+            FireEvent("GET_ITEM_INFO_RECEIVED",11,true);FlushTimers()
+            assert(mock.builds.bags==2 and mock.builds.equipped==2 and mock.builds.toys==1)
+            assert(mock.requests[11]==1 and not lib._sourceItemPending.bags and not lib._sourceItemPending.equipped)
+        ''')
+
+    def test_synchronous_completion_rejects_the_incomplete_build_and_preserves_reentry(self):
+        self.lua.execute('''
+            GetInventoryItemLink=function() return nil end
+            mock.items["item:11"]=nil
+            C_Item.RequestLoadItemDataByID=function(id)
+                mock.requests[id]=(mock.requests[id] or 0)+1
+                mock.items["item:11"]={name="needle recovered"}
+                FireEvent("GET_ITEM_INFO_RECEIVED",id,true)
+                local inner=search:Query("needle",options)
+                for _,row in ipairs(inner) do assert(row.kind~="bags") end
+            end
+            local first=search:Query("needle",options)
+            for _,row in ipairs(first) do assert(row.kind~="bags") end
+            assert(lib._dirty.bags and not lib._sourceItemPending.bags and mock.requests[11]==1)
+            local second=search:Query("needle",options)
+            assert(#second==3 and mock.builds.bags==2 and mock.requests[11]==1)
+            assert(not lib._dirty.bags and next(lib._sourceItemBuilders)==nil)
+        ''')
+
+    def test_failed_and_lost_loads_retry_on_a_later_query_after_the_timeout(self):
+        self.lua.execute('''
+            mock.items["item:11"]=nil
+            search:Query("needle",options);assert(mock.requests[11]==1)
+            FireEvent("GET_ITEM_INFO_RECEIVED",11,false)
+            search:Query("needle",options);assert(mock.requests[11]==1 and mock.builds.bags==1)
+            mock.now=mock.now+31
+            search:Query("needle",options);assert(mock.requests[11]==2 and mock.builds.bags==2)
+            mock.now=mock.now+31
+            search:Query("needle",options);assert(mock.requests[11]==3 and mock.builds.bags==3)
+            mock.items["item:11"]={name="needle recovered"}
+            FireEvent("GET_ITEM_INFO_RECEIVED",11,true);FlushTimers()
+            assert(not lib._sourceItemPending.bags and not lib._sourceItemPending.equipped)
+        ''')
+
+    def test_disable_and_replacement_retire_receipts_without_late_refresh(self):
+        self.lua.execute('''
+            mock.items["item:11"]=nil
+            search:Query("needle",options)
+            assert(lib._sourceItemPending.bags)
+            search:Disable()
+            assert(next(lib._sourceItemPending)==nil)
+            FireEvent("GET_ITEM_INFO_RECEIVED",11,true);FlushTimers()
+            assert(mock.builds.bags==1 and not mock.updates)
+            mock.items["item:11"]={name="needle ready"}
+            search:Enable();search:SetOpen(true)
+            search:Query("needle",options)
+            assert(mock.builds.bags==2 and not lib._sourceItemPending.bags)
+            lib:RegisterIndexSource("bags",{Build=function() return {Entry("bags",22)} end})
+            assert(not lib._sourceItemPending.bags)
+            FireEvent("GET_ITEM_INFO_RECEIVED",11,true)
+            assert(search:Query("needle",options)[1] and not lib._dirty.bags)
+        ''')
+
+    def test_complete_indexes_stay_warm_across_ordinary_close_and_reopen(self):
+        self.lua.execute('''
+            local rows=search:Query("needle",options)
+            search:SetOpen(false)
+            FireEvent("GET_ITEM_INFO_RECEIVED",11,true);FlushTimers()
+            search:SetOpen(true)
+            assert(#search:Query("needle",options)==4)
+            for _,row in ipairs(rows) do assert(search:IsEntryCurrent(row)) end
+            for _,kind in ipairs({"bags","equipped","toys","heirlooms"}) do
+                assert(mock.builds[kind]==1 and not lib._dirty[kind],kind)
+            end
+        ''')
+
+    def test_last_disable_retires_complete_indexes_before_unobserved_native_mutation(self):
+        self.lua.execute('''
+            local rows=search:Query("needle",options)
+            search:Disable()
+            for _,row in ipairs(rows) do assert(not search:IsEntryCurrent(row)) end
+            mock.bags={{id=12,link="item:12"}}
+            mock.items["item:12"]={name="needle changed"}
+            GetInventoryItemLink=function(_,slot) return slot==1 and "item:12" or nil end
+            GetInventoryItemID=function(_,slot) return slot==1 and 12 or nil end
+            FireEvent("BAG_UPDATE_DELAYED");FireEvent("PLAYER_EQUIPMENT_CHANGED");FlushTimers()
+            assert(mock.builds.bags==1 and mock.builds.equipped==1 and not mock.updates)
+            search:Enable();search:SetOpen(true)
+            local changed=search:Query("changed",options)
+            assert(#changed==2 and changed[1].id==12 and changed[2].id==12)
+            for _,kind in ipairs({"bags","equipped","toys","heirlooms"}) do
+                assert(mock.builds[kind]==2 and not lib._dirty[kind],kind)
+            end
+        ''')
+
+    def test_another_enabled_consumer_keeps_shared_complete_indexes_observed(self):
+        self.lua.execute('''
+            search:Query("needle",options)
+            local other=lib:NewSearch({kinds={{kind="bags",label="bags"}}})
+            other:Enable()
+            search:Disable()
+            assert(not lib._dirty.bags)
+            mock.bags={{id=12,link="item:12"}};mock.items["item:12"]={name="needle changed"}
+            FireEvent("BAG_UPDATE_DELAYED")
+            assert(lib._dirty.bags and mock.builds.bags==1)
+            search:Enable();search:SetOpen(true)
+            assert(search:Query("changed",options)[1].id==12 and mock.builds.bags==2)
+        ''')
+
+    def test_last_inclusion_drop_rebuilds_only_the_incomplete_index(self):
+        self.lua.execute('''
+            GetInventoryItemLink=function() return nil end
+            mock.items["item:11"]=nil
+            search:Query("needle",options)
+            search._config.IsKindEnabled=function(row) return row.kind~="bags" end
+            search:NotifySettingsChanged()
+            assert(lib._dirty.bags and not lib._sourceItemPending.bags)
+            mock.items["item:11"]={name="needle recovered"}
+            FireEvent("GET_ITEM_INFO_RECEIVED",11,true);FlushTimers()
+            assert(mock.builds.bags==1)
+            search._config.IsKindEnabled=nil;search:NotifySettingsChanged()
+            assert(#search:Query("needle",options)==3 and mock.builds.bags==2)
+            assert(mock.builds.toys==1 and mock.builds.heirlooms==1 and mock.builds.equipped==1)
+        ''')
+
+    def test_pending_receipts_recover_after_native_availability_disappears(self):
+        self.lua.execute('''
+            GetInventoryItemLink=function() return nil end
+            mock.items["item:11"]=nil
+            search:Query("needle",options)
+            local containers=C_Container;C_Container=nil
+            FireEvent("ADDON_LOADED")
+            assert(lib._dirty.bags and not lib._sourceItemPending.bags)
+            mock.items["item:11"]={name="needle recovered"}
+            C_Container=containers;FireEvent("ADDON_LOADED")
+            assert(#search:Query("needle",options)==3 and mock.builds.bags==2)
+        ''')
+
+    def test_source_replacement_inside_a_native_request_cannot_publish_old_receipts(self):
+        self.lua.execute('''
+            GetInventoryItemLink=function() return nil end
+            mock.items["item:11"]=nil
+            C_Item.RequestLoadItemDataByID=function(id)
+                lib:RegisterIndexSource("bags",{Build=function() return {Entry("bags",22)} end})
+            end
+            search:Query("needle",options)
+            assert(not lib._sourceItemPending.bags and next(lib._sourceItemBuilders)==nil)
+            local rows=search:Query("needle",options)
+            local found=false
+            for _,row in ipairs(rows) do if row.kind=="bags" then assert(row.id==22);found=true end end
+            assert(found)
+        ''')
+
+    def test_pending_receipts_are_bounded_and_a_completion_recovers_the_full_inventory(self):
+        self.lua.execute('''
+            mock.bags={};mock.items={}
+            GetInventoryItemLink=function() return nil end
+            for id=1,512 do mock.bags[id]={id=id,link="item:"..id} end
+            search:Query("needle",options)
+            assert(lib._sourceItemPending.bags.items.count==256 and lib._sourceItemRequests.count==256)
+            for id=1,512 do mock.items["item:"..id]={name="needle "..id} end
+            FireEvent("GET_ITEM_INFO_RECEIVED",512,true);FlushTimers()
+            assert(mock.builds.bags==2 and not lib._sourceItemPending.bags)
+            assert(#lib._entries.bags==512 and mock.requests[512]==1)
+        ''')
+
+    def test_catalog_name_with_pending_heirloom_keywords_recovers(self):
+        self.lua.execute('''
+            mock.items[88]=nil
+            search:Query("needle",options)
+            assert(lib._sourceItemPending.heirlooms and mock.requests[88]==1)
+            mock.items[88]={name="needle heirloom"}
+            FireEvent("GET_ITEM_INFO_RECEIVED",88,true);FlushTimers()
+            assert(mock.builds.heirlooms==2 and not lib._sourceItemPending.heirlooms)
+            assert(lib._entries.heirlooms[1].lowerName:find("consumable"))
+        ''')
+
+
 if __name__ == "__main__":
     unittest.main()

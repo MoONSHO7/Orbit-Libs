@@ -9,7 +9,12 @@ local Native = lib._NativeContract
 local Bags = {
     kind = "bags",
     -- Quest markers follow the quest log, so Blizzard's bags also redraw on these quest events.
-    events = { "BAG_UPDATE_DELAYED", "QUEST_ACCEPTED", "UNIT_QUEST_LOG_CHANGED", "GET_ITEM_INFO_RECEIVED" },
+    events = {
+        "BAG_UPDATE_DELAYED",
+        "QUEST_ACCEPTED",
+        { event = "UNIT_QUEST_LOG_CHANGED", unit = "player" },
+        { event = "GET_ITEM_INFO_RECEIVED", items = true },
+    },
 }
 
 function Bags:GetAvailability()
@@ -53,15 +58,16 @@ function Bags:Build()
             if info and info.itemID and info.hyperlink and not seen[info.itemID] then
                 seen[info.itemID] = true
                 local name, _, quality = GetItemInfo(info.hyperlink)
-                if not name then
-                    Native.RequestItem(info.itemID)
+                local keywords, pending = ItemKeywords.Build(info.hyperlink, IsQuestItem(bag, slot))
+                if not name or pending then
+                    Native.RequestItem(self, info.itemID)
                 end
                 name = name or info.hyperlink
                 entries[#entries + 1] = {
                     kind = "bags",
                     id = info.itemID,
                     name = name,
-                    lowerName = lib.Fold(name .. " " .. ItemKeywords.Build(info.hyperlink, IsQuestItem(bag, slot))),
+                    lowerName = lib.Fold(name .. " " .. keywords),
                     icon = info.iconFileID,
                     count = GetItemCount(info.itemID),
                     quality = quality,

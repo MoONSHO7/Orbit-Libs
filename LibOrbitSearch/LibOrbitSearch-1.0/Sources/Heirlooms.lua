@@ -8,7 +8,7 @@ local Native = lib._NativeContract
 
 local Heirlooms = {
     kind = "heirlooms",
-    events = { "HEIRLOOMS_UPDATED", "GET_ITEM_INFO_RECEIVED", "BAG_UPDATE_DELAYED" },
+    events = { "HEIRLOOMS_UPDATED", { event = "GET_ITEM_INFO_RECEIVED", items = true }, "BAG_UPDATE_DELAYED" },
 }
 
 function Heirlooms:GetAvailability()
@@ -25,17 +25,23 @@ function Heirlooms:Build()
         if C_Heirloom.PlayerHasHeirloom(itemID) then
             local name, icon = C_Heirloom.GetHeirloomInfo(itemID)
             if name then
+                local keywords, pending = ItemKeywords.Build(itemID)
+                if pending then
+                    Native.RequestItem(self, itemID)
+                end
                 local carried = GetItemCount and GetItemCount(itemID) > 0
                 entries[#entries + 1] = {
                     kind = "heirlooms",
                     id = itemID,
                     name = name,
-                    lowerName = lib.Fold(name .. " " .. ItemKeywords.Build(itemID)),
+                    lowerName = lib.Fold(name .. " " .. keywords),
                     icon = icon,
                     quality = Enum and Enum.ItemQuality and Enum.ItemQuality.Heirloom,
                     passive = not carried,
                     secure = carried and { type = "item", item = tostring(itemID) } or nil,
                 }
+            else
+                Native.RequestItem(self, itemID)
             end
         end
     end

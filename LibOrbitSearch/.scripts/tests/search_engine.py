@@ -162,6 +162,62 @@ end
 """
 
 CASES = {
+    "a cold provider scope skips native indexes, master assembly and recent loads": r"""
+        lib:RegisterProvider("places", Provider({ { id = 1, name = "Stormwind" } }))
+        search:BeginSessions(function() end);search:SetOpen(true)
+        search.GetMaster = function() error("scoped queries must not assemble a master") end
+        search._config.recents.Load = function() error("scoped queries must not load recents") end
+        assert(Names(Run("storm", "locations")) == "Stormwind")
+        assert(next(mock.builds) == nil and next(search:GetIndexDemand()) == nil)
+        assert(#Run("", "locations") == 1 and next(mock.builds) == nil)
+        assert(#Run("123", "locations") == 0 and next(mock.builds) == nil)
+        mock.disabled.locations = true
+        assert(#Run("storm", "locations") == 0 and next(mock.builds) == nil)
+    """,
+    "a dirty warm index waits while the latest query is scoped then recovers once": r"""
+        mock.entries.bags = { Entry("bags", "Stormwind portal") }
+        lib:RegisterProvider("places", Provider({ { id = 1, name = "Stormwind" } }))
+        search:BeginSessions(function() end);search:SetOpen(true)
+        assert(#Run("storm") == 2 and mock.builds.bags == 1)
+        assert(#Run("storm", "locations") == 1)
+        FireEvent("EVENT_BAGS");FireEvent("EVENT_BAGS");FlushTimers()
+        assert(lib._dirty.bags and mock.builds.bags == 1 and not mock.indexUpdated)
+        assert(#Run("storm", "locations") == 1 and mock.builds.bags == 1)
+        assert(#Run("storm") == 2 and mock.builds.bags == 2 and not lib._dirty.bags)
+        assert(#Run("storm") == 2 and mock.builds.bags == 2)
+    """,
+    "another unscoped open search retains its native demand during a provider scope": r"""
+        mock.entries.bags = { Entry("bags", "Stormwind portal") }
+        lib:RegisterProvider("places", Provider({ { id = 1, name = "Stormwind" } }))
+        search:BeginSessions(function() end);search:SetOpen(true)
+        local calls = 0
+        local other = lib:NewSearch({ kinds = KINDS, onIndexUpdated = function() calls = calls + 1 end })
+        other:Enable();other:SetOpen(true)
+        other:Query("storm", { maxResults = 100, fuzzy = true })
+        Run("storm", "locations")
+        FireEvent("EVENT_BAGS");FlushTimers()
+        assert(mock.builds.bags == 2 and calls == 1 and not mock.indexUpdated)
+        assert(#Run("storm", "locations") == 1)
+    """,
+    "recents restore native demand after a scoped query": r"""
+        mock.entries.bags = { Entry("bags", "Stormwind portal") }
+        search:SetOpen(true);Run("", "locations")
+        Use("bags", "Stormwind portal")
+        assert(search:Recents(10)[1].name == "Stormwind portal" and mock.builds.bags == 1)
+        FireEvent("EVENT_BAGS");FlushTimers()
+        assert(mock.builds.bags == 2 and mock.indexUpdated == 1)
+    """,
+    "closing drops provider scope and a fresh open keeps the original refresh contract": r"""
+        search:SetOpen(true);Run("", "locations")
+        assert(next(search:GetIndexDemand()) == nil)
+        search:SetOpen(false)
+        assert(search:GetIndexDemand().bags == true)
+        search:SetOpen(true);search:EnsureBuilt()
+        FireEvent("EVENT_BAGS");FlushTimers()
+        assert(mock.builds.bags == 2 and mock.indexUpdated == 1)
+        Run("", "locations");FireEvent("EVENT_BAGS");FlushTimers()
+        assert(mock.builds.bags == 2 and lib._dirty.bags and mock.indexUpdated == 1)
+    """,
     "reopening during provider startup retires the earlier session": r"""
         local starts, ends = 0, 0
         local callback = function() end
@@ -592,6 +648,116 @@ CASES = {
         assert(Names(Run("upgrade")) == "Upgrade Toy")
         assert(lib.__building == false)
     """,
+    "unit-filtered events dirty only for their unit and data events never re-register": r"""
+        lib:RegisterIndexSource("unitkind", { events = { "EVENT_PLAIN", { event = "EVENT_UNIT", unit = "player" } },
+            Build = function() return {} end })
+        local unitSearch = lib:NewSearch({ kinds = { { kind = "unitkind", label = "U" }, { kind = "toys", label = "T" } } })
+        unitSearch:Enable()
+        assert(lib._eventFrame.events.EVENT_UNIT == true and lib._eventFrame.events.EVENT_PLAIN == true)
+        unitSearch:Query("x", { maxResults = 10 })
+        Run("x")
+        local registrations, lookups = 0, 0
+        local register, refresh = lib._eventFrame.RegisterEvent, lib._IDLookup.RefreshEvents
+        lib._eventFrame.RegisterEvent = function(...) registrations = registrations + 1; return register(...) end
+        lib._IDLookup.RefreshEvents = function(...) lookups = lookups + 1; return refresh(...) end
+        local revision = lib._kindRevisions.unitkind
+        for i = 1, 40 do FireEvent("EVENT_UNIT", "raid" .. i) end
+        assert(lib._kindRevisions.unitkind == revision and not lib._dirty.unitkind, "non-player bursts retire nothing")
+        FireEvent("EVENT_UNIT", "player")
+        assert(lib._dirty.unitkind, "the player's event dirties the kind")
+        FireEvent("EVENT_TOYS")
+        assert(lib._dirty.toys, "plain events still dirty")
+        assert(registrations == 0 and lookups == 0, "data events with unchanged inclusion never rebuild registration")
+        assert(not lib._eventFrame.events.ADDON_LOADED, "no probing source, so no wake event on the event frame")
+    """,
+    "an inclusion write that bypasses NotifySettingsChanged still re-registers on the next data event": r"""
+        assert(lib._eventFrame.events.EVENT_PETS)
+        mock.disabled.pets = true
+        FireEvent("EVENT_TOYS")
+        assert(not lib._eventFrame.events.EVENT_PETS, "an excluded kind's events drop")
+        mock.disabled.pets = nil
+        FireEvent("EVENT_TOYS")
+        assert(lib._eventFrame.events.EVENT_PETS, "a re-included kind's events return")
+    """,
+    "an ID-type demand change written behind the library re-registers ID lookups on the next data event": r"""
+        assert(lib._idFrame.events.SPELL_DATA_LOAD_RESULT)
+        mock.disabled.ids = true
+        FireEvent("EVENT_TOYS")
+        assert(not lib._idFrame.events.SPELL_DATA_LOAD_RESULT)
+        mock.disabled.ids = nil
+        FireEvent("EVENT_TOYS")
+        assert(lib._idFrame.events.SPELL_DATA_LOAD_RESULT)
+    """,
+    "wake events still re-probe and register recovered unit specs": r"""
+        local phase = "unsupported"
+        lib:RegisterIndexSource("late", { events = { { event = "EVENT_LATE", unit = "player" } },
+            GetAvailability = function() return phase end, Build = function() return {} end })
+        local lateSearch = lib:NewSearch({ kinds = { { kind = "late", label = "L" } } })
+        lateSearch:Enable()
+        assert(not lib._eventFrame.events.EVENT_LATE and lib._eventFrame.events.ADDON_LOADED)
+        phase = "ready"
+        FireEvent("ADDON_LOADED")
+        assert(lib._eventFrame.events.EVENT_LATE == true and lib._eventKinds.EVENT_LATE.late == "player")
+    """,
+    "a plain consumer and a unit consumer share one registration and filter per kind": r"""
+        lib:RegisterIndexSource("a", { events = { { event = "EVENT_SHARED", unit = "player" } },
+            Build = function() return {} end })
+        lib:RegisterIndexSource("b", { events = { "EVENT_SHARED" }, Build = function() return {} end })
+        local sharedSearch = lib:NewSearch({ kinds = { { kind = "a", label = "A" }, { kind = "b", label = "B" } } })
+        sharedSearch:Enable()
+        sharedSearch:Query("x", { maxResults = 10 })
+        FireEvent("EVENT_SHARED", "party1")
+        assert(lib._dirty.b and not lib._dirty.a)
+    """,
+    "matcher order equals the row-table full sort, ties included": r"""
+        local sort, captured = table.sort, nil
+        table.sort = function(list, comparator) captured = comparator; return sort(list, comparator) end
+        LoadAll(2)
+        table.sort = sort
+        local function Upvalue(fn, wanted)
+            local index = 1
+            while true do
+                local name, value = debug.getupvalue(fn, index)
+                if not name or name == wanted then return value end
+                index = index + 1
+            end
+        end
+        local rows = {}
+        local names = { "Alpha", "Alpha", "Alpha Beta", "Beta", "Alpha", "Gamma Alpha", "alpha", "Alp" }
+        for i = 1, 300 do
+            local entry = Entry(({ "bags", "toys", "mounts", "pets" })[i % 4 + 1], names[i % #names + 1], i)
+            entry.favorite = i % 7 == 0
+            rows[i] = entry
+        end
+        local recentBoost = { ["toys:3"] = 1, ["bags:8"] = 2, ["pets:13"] = 1 }
+        local compared = 0
+        for _, query in ipairs({ "a", "alpha", "al", "beta", "bags", "bags al", "zzz", "alp" }) do
+            captured = nil
+            local parsed = lib._Matcher.Parse(search, lib.Fold(query))
+            local options = { maxResults = 100, fuzzy = true }
+            local out, tiers = lib._Matcher.Query(search, rows, parsed, search:GetEnabledKinds(), options, recentBoost)
+            assert(#tiers == #out, query)
+            if captured then
+                local scores, matches, priority =
+                    Upvalue(captured, "scores"), Upvalue(captured, "matches"), Upvalue(captured, "priority")
+                local results = {}
+                for i = 1, #matches do results[i] = { entry = matches[i], score = scores[i] } end
+                sort(results, function(a, b)
+                    if a.score ~= b.score then return a.score > b.score end
+                    local pa = priority[a.entry.kind] or 0
+                    local pb = priority[b.entry.kind] or 0
+                    if pa ~= pb then return pa > pb end
+                    return a.entry.lowerName < b.entry.lowerName
+                end)
+                assert(#out == math.min(options.maxResults, #results), query)
+                for i = 1, #out do assert(out[i] == results[i].entry, query .. ":" .. i) end
+                compared = compared + #out
+            else
+                assert(#out == 0, query)
+            end
+        end
+        assert(compared > 300, "the corpus must exercise ranked ties")
+    """,
 }
 
 SOURCE_SETUP = r"""
@@ -650,8 +816,23 @@ SOURCE_CASES = {
         lib:InvalidateAll()
         assert(#search:Query("quest", options) == 0)
         local events = {}
-        for _, event in ipairs(lib._indexSources.bags.events) do events[event] = true end
+        for _, spec in ipairs(lib._indexSources.bags.events) do events[type(spec) == "table" and spec.event or spec] = true end
         assert(events.QUEST_ACCEPTED and events.UNIT_QUEST_LOG_CHANGED and events.BAG_UPDATE_DELAYED)
+    """,
+    "built-in unit specs register plain with per-kind player filters": r"""
+        Enum.SpellBookItemType = { Spell = 1, Flyout = 2 }
+        C_SpellBook = { GetNumSpellBookSkillLines = function() return 0 end, GetSpellBookSkillLineInfo = function() end,
+            GetSpellBookItemInfo = function() end }
+        local lib = LibStub("LibOrbitSearch-1.0")
+        local search = lib:NewSearch({ kinds = { { kind = "spellbook", label = "S" }, { kind = "bags", label = "B" } } })
+        search:Enable()
+        for _, event in ipairs({ "UNIT_PET", "PLAYER_SPECIALIZATION_CHANGED", "UNIT_QUEST_LOG_CHANGED", "SPELLS_CHANGED" }) do
+            assert(lib._eventFrame.events[event] == true, event)
+        end
+        assert(lib._eventKinds.UNIT_PET.spellbook == "player")
+        assert(lib._eventKinds.PLAYER_SPECIALIZATION_CHANGED.spellbook == "player")
+        assert(lib._eventKinds.UNIT_QUEST_LOG_CHANGED.bags == "player")
+        assert(lib._eventKinds.SPELLS_CHANGED.spellbook == true)
     """,
 }
 

@@ -83,6 +83,7 @@ end
 function SearchMixin:SetOpen(open)
     lib._openSearches[self] = open and true or nil
     if not open then
+        self._queryScope = nil
         self:EndSessions()
     end
 end
@@ -160,6 +161,10 @@ function SearchMixin:GetEnabledKinds()
     return enabled
 end
 
+function SearchMixin:GetIndexDemand()
+    return self._queryScope and EMPTY or self:GetEnabledKinds()
+end
+
 function SearchMixin:EntryID(entry)
     local row = entry and self._rowsByKind[entry.kind]
     if not row or not row.idSearch then
@@ -220,9 +225,14 @@ function SearchMixin:Query(text, options)
     local start, startKB = lib:_ProfileBegin()
     Sessions.Reconcile(self)
     local enabledKinds = self:GetEnabledKinds()
-    self:EnsureBuilt(enabledKinds)
-    local recentBoost = self._config.recents and Recents.GetBoostIndex(self._config.recents) or EMPTY
-    local results, status = Merge.Run(self, self:GetMaster(), text, enabledKinds, options, recentBoost)
+    self._queryScope = options.scope
+    local master, recentBoost = EMPTY, EMPTY
+    if not options.scope then
+        self:EnsureBuilt(enabledKinds)
+        master = self:GetMaster()
+        recentBoost = self._config.recents and Recents.GetBoostIndex(self._config.recents) or EMPTY
+    end
+    local results, status = Merge.Run(self, master, text, enabledKinds, options, recentBoost)
     if not options.scope then
         PrependTypedID(self, results, lib.Fold(text), enabledKinds)
     end
@@ -237,6 +247,7 @@ function SearchMixin:Recents(limit)
     end
     local start, startKB = lib:_ProfileBegin()
     local enabledKinds = self:GetEnabledKinds()
+    self._queryScope = nil
     self:EnsureBuilt(enabledKinds)
     local wanted, results = {}, {}
     for index, key in ipairs(Recents.GetRankedKeys(store, limit)) do

@@ -9,7 +9,6 @@ local string_len = string.len
 local math_max = math.max
 local math_min = math.min
 local table_sort = table.sort
-local table_insert = table.insert
 
 -- [ CONSTANTS ]--------------------------------------------------------------------------------------------------------
 local SCORE_ID_EXACT = 1200
@@ -263,16 +262,14 @@ function Matcher.Query(search, entries, parsed, enabledKinds, options, recentBoo
 
     local kindFilter, nameQuery = parsed.kindFilter, parsed.nameQuery
     local hidePassives = options.hidePassives
-    local results = {}
+    local matches, scores, matchTiers, order, count = {}, {}, {}, {}, 0
     if kindFilter and nameQuery == "" then
         for i = 1, #entries do
             local entry = entries[i]
             if entry.kind == kindFilter and enabledKinds[entry.kind] and not (hidePassives and entry.passive) then
-                table_insert(results, {
-                    entry = entry,
-                    score = ApplyBoosts(SCORE_CATEGORY, entry, recentBoost),
-                    tier = TIER_CATEGORY,
-                })
+                count = count + 1
+                matches[count], scores[count], matchTiers[count], order[count] =
+                    entry, ApplyBoosts(SCORE_CATEGORY, entry, recentBoost), TIER_CATEGORY, count
             end
         end
     else
@@ -303,32 +300,32 @@ function Matcher.Query(search, entries, parsed, enabledKinds, options, recentBoo
                     end
                 end
                 if score > 0 then
-                    table_insert(
-                        results,
-                        { entry = entry, score = ApplyBoosts(score, entry, recentBoost), tier = tier }
-                    )
+                    count = count + 1
+                    matches[count], scores[count], matchTiers[count], order[count] =
+                        entry, ApplyBoosts(score, entry, recentBoost), tier, count
                 end
             end
         end
     end
 
     local priority = search._priority
-    table_sort(results, function(a, b)
-        if a.score ~= b.score then
-            return a.score > b.score
+    table_sort(order, function(a, b)
+        if scores[a] ~= scores[b] then
+            return scores[a] > scores[b]
         end
-        local pa = priority[a.entry.kind] or 0
-        local pb = priority[b.entry.kind] or 0
+        local entryA, entryB = matches[a], matches[b]
+        local pa = priority[entryA.kind] or 0
+        local pb = priority[entryB.kind] or 0
         if pa ~= pb then
             return pa > pb
         end
-        return a.entry.lowerName < b.entry.lowerName
+        return entryA.lowerName < entryB.lowerName
     end)
 
-    local limit = math_min(options.maxResults or DEFAULT_MAX_RESULTS, #results)
+    local limit = math_min(options.maxResults or DEFAULT_MAX_RESULTS, count)
     for i = 1, limit do
-        out[i] = results[i].entry
-        tiers[i] = results[i].tier
+        out[i] = matches[order[i]]
+        tiers[i] = matchTiers[order[i]]
     end
     return out, tiers
 end

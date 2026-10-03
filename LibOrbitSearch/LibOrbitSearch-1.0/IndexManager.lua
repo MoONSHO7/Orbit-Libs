@@ -9,7 +9,9 @@ local REBUILD_DELAY = 0.5
 local PROFILER_GROUP = "Search/Index"
 local WAKE_EVENTS = { "ADDON_LOADED", "PLAYER_ENTERING_WORLD" }
 local EMPTY = {}
+local ITEM_DATA_FILTER = {}
 table.freeze(EMPTY)
+table.freeze(ITEM_DATA_FILTER)
 table.freeze(WAKE_EVENTS)
 local Native = lib._NativeContract
 
@@ -25,6 +27,8 @@ lib._eventFrame = lib._eventFrame or CreateFrame("Frame")
 lib._sourceStates = lib._sourceStates or {}
 lib._entryOwners = lib._entryOwners or setmetatable({}, { __mode = "k" })
 lib._eventKinds = {}
+lib._wakeEvents = {}
+lib._includedKinds = {}
 lib._buildingKinds = {}
 for kind in pairs(lib._built) do
     if not lib._sourceStates[kind] then
@@ -54,6 +58,7 @@ local function ProbeSource(kind, source)
 end
 
 local function RetireKind(kind, state, reason, blocked)
+    Native.ClearItems(kind)
     local previous = lib._sourceStates[kind]
     if not previous or previous.state ~= state or previous.reason ~= reason or lib._entries[kind] ~= EMPTY then
         AdvanceRevision(kind)
@@ -85,12 +90,36 @@ function lib:GetIndexSourceState(kind)
 end
 
 -- [ EVENTS ]-----------------------------------------------------------------------------------------------------------
-lib._eventFrame:SetScript("OnEvent", function(_, event)
-    local kinds = lib._eventKinds[event] or EMPTY
-    for kind in pairs(kinds) do
+local function InclusionDrifted()
+    for kind in pairs(lib._indexSources) do
+        if (lib._includedKinds[kind] == true) ~= lib:IsKindIncluded(kind) then
+            return true
+        end
+    end
+    return lib._IDLookup.DemandChanged()
+end
+
+local function CancelItemDemand(kind, invalidate)
+    if invalidate or lib._sourceItemPending[kind] then
         lib:MarkDirty(kind)
     end
-    lib:_RefreshEventRegistration()
+    Native.ClearItems(kind)
+end
+
+lib._eventFrame:SetScript("OnEvent", function(_, event, unit, success)
+    for kind, filter in pairs(lib._eventKinds[event] or EMPTY) do
+        if filter == ITEM_DATA_FILTER then
+            if Native.ItemDataReceived(kind, unit, success) then
+                lib:MarkDirty(kind)
+            end
+        elseif filter == true or filter == unit then
+            lib:MarkDirty(kind)
+        end
+    end
+    -- Probe classes change only on wake events; drift keeps un-notified inclusion writes self-healing.
+    if lib._wakeEvents[event] or InclusionDrifted() then
+        lib:_RefreshEventRegistration()
+    end
 end)
 
 function lib:_RefreshEventRegistration()
@@ -98,10 +127,15 @@ function lib:_RefreshEventRegistration()
         return
     end
     local frame = self._eventFrame
+    local previousIncluded = self._includedKinds
     frame:UnregisterAllEvents()
-    self._eventKinds = {}
-    local function Include(kind, events)
-        for _, event in ipairs(events) do
+    self._eventKinds, self._wakeEvents, self._includedKinds = {}, {}, {}
+    local function Include(kind, events, wake)
+        for _, spec in ipairs(events) do
+            local event, unit = spec, true
+            if type(spec) == "table" then
+                event, unit = spec.event, spec.items and ITEM_DATA_FILTER or spec.unit
+            end
             if Native.IsEventValid(event) then
                 local kinds = self._eventKinds[event]
                 if not kinds then
@@ -109,19 +143,26 @@ function lib:_RefreshEventRegistration()
                     self._eventKinds[event] = kinds
                     frame:RegisterEvent(event)
                 end
-                kinds[kind] = true
+                local previous = kinds[kind]
+                kinds[kind] = (previous == nil or previous == unit) and unit or true
+                self._wakeEvents[event] = wake or self._wakeEvents[event]
             end
         end
     end
     for kind, source in pairs(self._indexSources) do
         if self:IsKindIncluded(kind) then
+            self._includedKinds[kind] = true
             local state = ProbeSource(kind, source)
             if state == "ready" or state == "pending" then
                 Include(kind, source.events or EMPTY)
+            else
+                CancelItemDemand(kind, true)
             end
             if source.GetAvailability then
-                Include(kind, source.wakeEvents or WAKE_EVENTS)
+                Include(kind, source.wakeEvents or WAKE_EVENTS, true)
             end
+        else
+            CancelItemDemand(kind, previousIncluded[kind])
         end
     end
     self._IDLookup.RefreshEvents()
@@ -134,7 +175,7 @@ local function RebuildOpenSearches()
     lib._pendingRebuildKinds = {}
     local interested, enabledKinds = {}, {}
     for search in pairs(lib._openSearches) do
-        local enabled = search:GetEnabledKinds()
+        local enabled = search:GetIndexDemand()
         interested[search] = enabled
         for kind, included in pairs(enabled) do
             enabledKinds[kind] = enabledKinds[kind] or included
@@ -178,6 +219,7 @@ function lib:InvalidateAll()
 end
 
 function lib:_ForgetKind(kind)
+    Native.ClearItems(kind)
     self._entries[kind] = nil
     self._dirty[kind] = nil
     self._built[kind] = nil
@@ -193,11 +235,13 @@ function lib:_BuildKind(kind)
     local source = self._indexSources[kind]
     local revision = self._kindRevisions[kind] or 0
     self._buildingKinds[kind] = true
+    local itemBuild = Native.BeginBuild(kind, source)
     local start, startKB = self:_ProfileBegin()
     local ok, built, state, reason = pcall(source.Build, source)
     self._buildingKinds[kind] = nil
     self:_ProfileEnd(PROFILER_GROUP, kind, start, startKB)
     if self._indexSources[kind] ~= source or (self._kindRevisions[kind] or 0) ~= revision then
+        Native.EndBuild(itemBuild, false)
         return true
     end
     self._built[kind] = true
@@ -207,17 +251,20 @@ function lib:_BuildKind(kind)
         self._buildErrors[kind] = message
         RetireKind(kind, "failed", message, false)
         self:_Report(kind .. ".Build: " .. message)
+        Native.EndBuild(itemBuild, false)
         return true
     end
     self._buildErrors[kind] = nil
     if state == "pending" or state == "unsupported" then
         RetireKind(kind, state, reason, false)
+        Native.EndBuild(itemBuild, false)
         return true
     end
     self._entries[kind] = built
     self._buildCounts[kind] = #built
     self._sourceStates[kind] = { state = "ready" }
     AdvanceRevision(kind)
+    Native.EndBuild(itemBuild, true)
     for _, entry in ipairs(built) do
         self._entryOwners[entry] = { source = source, revision = self._kindRevisions[kind] }
     end
@@ -228,6 +275,9 @@ function lib:_EnsureKindsBuilt(enabledKinds)
     local rebuilt = false
     for kind, enabled in pairs(enabledKinds) do
         if enabled and self._indexSources[kind] then
+            if self._built[kind] and not self._dirty[kind] and Native.ItemsExpired(kind) then
+                self:MarkDirty(kind)
+            end
             self:GetIndexSourceState(kind)
             if not self._buildingKinds[kind] and (self._dirty[kind] or not self._built[kind]) then
                 rebuilt = self:_BuildKind(kind) or rebuilt

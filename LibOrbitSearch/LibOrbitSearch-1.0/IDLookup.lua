@@ -52,14 +52,25 @@ local function IncludesType(search, idType)
     return row and search:IsKindEnabled(row) and (not predicate or predicate(idType) == true)
 end
 
-function Lookup.RefreshEvents()
-    local frame, caches = lib._idFrame, lib._idCaches
-    frame:UnregisterAllEvents()
+local function ReadDemand()
     local spell, item = false, false
     for search in pairs(lib._enabledSearches) do
         spell = spell or IncludesType(search, SPELL_ID_TYPE)
         item = item or IncludesType(search, ITEM_ID_TYPE)
     end
+    return spell, item
+end
+
+function Lookup.DemandChanged()
+    local spell, item = ReadDemand()
+    return spell ~= lib._idSpellDemand or item ~= lib._idItemDemand
+end
+
+function Lookup.RefreshEvents()
+    local frame, caches = lib._idFrame, lib._idCaches
+    frame:UnregisterAllEvents()
+    local spell, item = ReadDemand()
+    lib._idSpellDemand, lib._idItemDemand = spell, item
     if spell or item then
         for _, event in ipairs(WAKE_EVENTS) do
             if Native.IsEventValid(event) then

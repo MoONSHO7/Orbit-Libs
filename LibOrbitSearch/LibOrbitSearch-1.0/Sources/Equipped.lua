@@ -11,7 +11,7 @@ local LAST_SLOT = 19
 
 local Equipped = {
     kind = "equipped",
-    events = { "PLAYER_EQUIPMENT_CHANGED", "GET_ITEM_INFO_RECEIVED" },
+    events = { "PLAYER_EQUIPMENT_CHANGED", { event = "GET_ITEM_INFO_RECEIVED", items = true } },
 }
 
 function Equipped:GetAvailability()
@@ -27,17 +27,21 @@ function Equipped:Build()
             local name, _, quality, _, _, _, _, _, _, iconPath = GetItemInfo(link)
             local itemID = GetInventoryItemID("player", slot)
             if name and itemID then
+                local keywords, pending = ItemKeywords.Build(link)
+                if pending then
+                    Native.RequestItem(self, itemID)
+                end
                 entries[#entries + 1] = {
                     kind = "equipped",
                     id = itemID,
                     name = name,
-                    lowerName = lib.Fold(name .. " " .. ItemKeywords.Build(link)),
+                    lowerName = lib.Fold(name .. " " .. keywords),
                     icon = iconPath or GetInventoryItemTexture("player", slot),
                     quality = quality,
                     secure = { type = "item", item = link },
                 }
             elseif itemID then
-                Native.RequestItem(itemID)
+                Native.RequestItem(self, itemID)
             end
         end
     end

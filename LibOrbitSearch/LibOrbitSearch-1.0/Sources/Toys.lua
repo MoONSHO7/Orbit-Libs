@@ -7,7 +7,7 @@ local Native = lib._NativeContract
 
 local Toys = {
     kind = "toys",
-    events = { "TOYS_UPDATED", "GET_ITEM_INFO_RECEIVED" },
+    events = { "TOYS_UPDATED", { event = "GET_ITEM_INFO_RECEIVED", items = true } },
 }
 
 function Toys:GetAvailability()
@@ -40,7 +40,7 @@ function Toys:Build()
                     secure = { type = "macro", macrotext = "/use item:" .. itemID },
                 }
             else
-                Native.RequestItem(itemID)
+                Native.RequestItem(self, itemID)
             end
         end
     end
