@@ -14,6 +14,7 @@ ignore:
   - "LibOrbitUI-1.0/*.md"
   - LibOrbitUI-1.0/Core/README.md
   - LibOrbitUI-1.0/Rendering/README.md
+  - LibOrbitUI-1.0/Rendering/Assets/README.md
   - LibOrbitUI-1.0/Movement/README.md
   - LibOrbitUI-1.0/Config/README.md
   - LibOrbitUI-1.0/Config/Widgets/README.md

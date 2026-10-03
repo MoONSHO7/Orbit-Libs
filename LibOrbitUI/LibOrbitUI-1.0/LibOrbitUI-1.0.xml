@@ -10,6 +10,8 @@
     <Script file="Rendering\Pixel.lua"/>
     <Script file="Rendering\Text.lua"/>
     <Script file="Rendering\TextPosition.lua"/>
+    <Script file="Rendering\TooltipClick.lua"/>
+    <Script file="Rendering\Tooltip.lua"/>
     <Script file="Core\Runtime.lua"/>
     <Script file="Core\EscapeClose.lua"/>
     <Script file="Core\Context.lua"/>

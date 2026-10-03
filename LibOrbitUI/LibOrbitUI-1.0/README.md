@@ -1,13 +1,16 @@
 # LibOrbitUI
 
 ## Description
-An embedded UI library for Orbit and independently installed products. Each embedding exports `LibOrbitUI` on its addon's private namespace; it never creates or imitates the global Orbit object.
+An embedded UI library for Orbit and independently installed products. Each embedding exports `LibOrbitUI` on its
+addon's private namespace; it never creates or imitates the global Orbit object.
 
 ## Purpose
-Maintain shared movement, configuration controls and rendering utilities once, while consumers own feature behavior, settings, localization and advanced editing services.
+Maintain shared movement, configuration controls and rendering utilities once, while consumers own feature behavior,
+settings, localization and advanced editing services.
 
 ## Implementation
-`LibOrbitUI-1.0.xml` is the public load entry point. It orders declarations across responsibility folders; folder order is not load order. Loading the XML does not construct a consumer or hydrate its settings.
+`LibOrbitUI-1.0.xml` is the public load entry point. It orders declarations across responsibility folders; folder order
+is not load order. Loading the XML does not construct a consumer or hydrate its settings.
 
 | Module | Responsibility |
 |---|---|
@@ -20,19 +23,33 @@ Maintain shared movement, configuration controls and rendering utilities once, w
 | [Config/Dialogs](Config/Dialogs/README.md) | Window chrome, panels, tabbed settings and prompts. |
 | [Addon](Addon/README.md) | Product boot, movement and settings composition, plus an optional real-host bridge. |
 
-Consumers enter through `CreateContext`, `Controller` or `Addon`, then call the same exported API regardless of source folder. Settings and services belong to each consumer. API 1.6's immutable `Client` record supplies client identity; products own eligibility and readiness. API 1.7's shared protocol-1 `SettingsCoordinator` arbitrates Edit Mode settings visibility without sharing product state. API 1.8 adds consumer-local `DialogLifecycle`, context-owned dialog shutdown, guarded schema callbacks and complete panel release. API 1.9 adds `EscapeClose`, keeping addon-owned windows out of Blizzard's shared `UISpecialFrames` scan. `Config.CreateDialog` installs the lifecycle and Escape owners; custom shells opt into each explicitly. `registerWidgets(layout)` remains the consumer-owned control hook.
+Consumers enter through `CreateContext`, `Controller` or `Addon`, then call the same exported API regardless of source
+folder. Settings and services belong to each consumer. API 1.6's immutable `Client` record supplies client identity;
+products own eligibility and readiness. API 1.7's shared protocol-1 `SettingsCoordinator` arbitrates Edit Mode settings
+visibility without sharing product state. API 1.8 adds consumer-local `DialogLifecycle`, context-owned dialog shutdown,
+guarded schema callbacks and complete panel release. API 1.9 adds `EscapeClose`, keeping addon-owned windows out of
+Blizzard's shared `UISpecialFrames` scan. API 1.10 adds private Orbit-style tooltips and embedding-owned mouse glyphs. `Config.CreateDialog` installs the lifecycle and Escape owners; custom shells
+opt into each explicitly. `registerWidgets(layout)` remains the consumer-owned control hook.
 
-Orbit, Portal, Compass and Status Widget consume this source through development directory links. Packaging materializes regular files, preserves nested paths and includes `LICENSE`; module READMEs are development documentation.
+Orbit, Talents, Portal, Compass and Status Widget consume this source through development directory links. Packaging materializes
+regular files, preserves nested paths and includes `LICENSE`; module READMEs are development documentation.
 
 ## Gotchas
-- Keep the XML entry point stable and preserve dependency order when moving files. Consumer tools must follow XML paths or scan recursively rather than assuming root-level Lua files.
-- The library owns neither SavedVariables nor profile selection. Every edit commits through consumer callbacks; hosted products delegate lifecycle and persistence to the real Orbit owner.
-- An ordinary Edit Mode overlay does not join Blizzard layout Save/Revert automatically. Consumers own persistence and interruption semantics.
-- Advanced Canvas, anchor graphs and host profile transactions remain in Orbit. Portal's original host integration preserves legacy storage; it is not the completed standalone migration/export contract.
-- Destroy a context only after its feature releases secure/native ownership. Cancelling work is not a substitute for restoration.
+- Keep the XML entry point stable and preserve dependency order when moving files. Consumer tools must follow XML paths
+  or scan recursively rather than assuming root-level Lua files.
+- The library owns neither SavedVariables nor profile selection. Every edit commits through consumer callbacks; hosted
+  products delegate lifecycle and persistence to the real Orbit owner.
+- An ordinary Edit Mode overlay does not join Blizzard layout Save/Revert automatically. Consumers own persistence and
+  interruption semantics.
+- Advanced Canvas, anchor graphs and host profile transactions remain in Orbit. Portal's original host integration
+  preserves legacy storage; it is not the completed standalone migration/export contract.
+- Destroy a context only after its feature releases secure/native ownership. Cancelling work is not a substitute for
+  restoration.
 
 ## Secrets
-Pixel math and font color restoration pass opaque secret values through supported sinks. Consumers supply ordinary authored geometry and editable color records; these modules do not turn restricted frame queries into saved settings.
+Pixel math and font color restoration pass opaque secret values through supported sinks. Consumers supply ordinary
+authored geometry and editable color records; these modules do not turn restricted frame queries into saved settings.
 
 ## References
-[Project](../README.md), [license](LICENSE), [release checks](../../.scripts/README.md), and [LibOrbitColorPicker](../../LibOrbitColorPicker/README.md).
+[Project](../README.md), [license](LICENSE), [release checks](../../.scripts/README.md), and
+[LibOrbitColorPicker](../../LibOrbitColorPicker/README.md).

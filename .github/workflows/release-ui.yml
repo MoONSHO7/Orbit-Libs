@@ -18,7 +18,25 @@ permissions:
   contents: write
 
 jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Install Lua validation dependency
+        run: python -m pip install lupa==2.8
+      - name: Verify shared UI behavior
+        run: |
+          for suite in LibOrbitUI/.scripts/tests/*.py; do
+            python "$suite" || exit 1
+          done
   release:
+    needs: validate
     if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/release-library.yml
     with:

@@ -18,13 +18,12 @@ function UI.CreateContext(options)
         context.tooltip = options.tooltip
         context.tooltipHide = options.tooltipHide
     else
-        assert(not _G[options.name .. "Tooltip"], "LibOrbitUI tooltip name is already in use")
-        context.tooltip = CreateFrame("GameTooltip", options.name .. "Tooltip", UIParent, "GameTooltipTemplate")
-        context.tooltip:SetClampedToScreen(true)
+        context.tooltip = UI.Tooltip:Create(options.name .. "Tooltip", context.pixel)
         context.tooltipHide = function()
             context.tooltip:Hide()
         end
     end
+    context.tooltipClick = UI.TooltipClick:Create(options.clickLabel)
     function context:Destroy()
         if self.destroyed then
             return

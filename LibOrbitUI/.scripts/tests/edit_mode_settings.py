@@ -9,6 +9,9 @@ RUNTIME = Path(__file__).resolve().parents[2] / "LibOrbitUI-1.0"
 BOOT = r'''
 mock = { combat = false, hooks = 0, clears = 0, errors = {}, frames = {}, timers = {}, writes = 0, categories = {} }
 UIParent = {}
+function debugstack() return "Interface/AddOns/Consumer/Libs/LibOrbitUI-1.0/Rendering/TooltipClick.lua:1" end
+function CreateSimpleTextureMarkup(path) return path end
+SHIFT_KEY_TEXT = "Shift"
 SlashCmdList = {}
 C_InstanceEncounter = { IsEncounterInProgress = function() return false end }
 table.freeze = function(value) return value end
@@ -188,7 +191,7 @@ class EditModeSettings(unittest.TestCase):
         for name in ("first", "second"):
             self.lua.execute(f"{name} = {{}}")
             addon = self.lua.globals()[name]
-            for relative in ("Core/Bootstrap.lua", "Core/Callbacks.lua", "Core/Runtime.lua", "Core/Context.lua",
+            for relative in ("Core/Bootstrap.lua", "Core/Callbacks.lua", "Core/Runtime.lua", "Rendering/TooltipClick.lua", "Core/Context.lua",
                              "Movement/EditSession.lua", "Config/Dialogs/SettingsCoordinator.lua",
                              "Config/Dialogs/DialogLifecycle.lua"):
                 self.load(relative, addon)
