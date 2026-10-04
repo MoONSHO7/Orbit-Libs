@@ -36,6 +36,10 @@ cancellation without a write.
 close ownership, combat rejection, asynchronous propagation restore and the absence of taint-sensitive global close
 registration anywhere in the runtime.
 
+`python .scripts/tests/font_refusal.py` loads the shipped Text owner against a client that refuses cold `SetFont`
+calls and replays them once the file loads. It checks the latest request wins, shadow/color/justification survive,
+repairs settle or time out and font-object setters take ownership; native font loading still needs a cold game start.
+
 `python .scripts/tests/tooltips.py` checks private and borrowed tooltip ownership, secret geometry, pixel borders,
 consumer-local asset paths, localized mouse hints and byte-identical relocation of the original mouse TGAs.
 

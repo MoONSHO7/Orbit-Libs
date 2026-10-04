@@ -21,6 +21,10 @@ sampler instance with native curves, unit data and theme policy.
 ## Gotchas
 - `Text.ApplyFont` preserves text color and justification. `CreateFontSetter` instead preserves Portal's cached
   font-object defaults; these entry points have different ownership contracts.
+- A cold client refuses `SetFont` (returns false) until the file loads, then replays the refused request on a later
+  frame over newer fonts. `ApplyFont` tracks refused regions and reapplies each one's latest request, keeping shadow,
+  color and justification, until accepted on two frames or after ten seconds; `CreateFontSetter` takes ownership back.
+  Writing a tracked region with raw `SetFont` can be overwritten during that window.
 - Physical offsets and logical coordinates are distinct inputs. Canvas callers use the logical placement sink after
   resolving their geometry.
 - Color sampling requires ordinary editable pins; it does not implement secret unit-value curves.
