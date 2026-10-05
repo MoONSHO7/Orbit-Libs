@@ -167,7 +167,8 @@ class GlowTests(unittest.TestCase):
         for name in ("tracer", "pinneon"):
             for width, ratio in ((100, "25"), (160, "40")):
                 for shape in ("square", "soft-small", "soft", "soft-large", "softer", "round", "round-large",
-                              "chamfer-small", "chamfer", "chamfer-large"):
+                              "chamfer-small", "chamfer", "chamfer-large", "notch-small", "notch", "notch-large",
+                              "blade-small", "blade", "blade-large"):
                     path, definition, resolved_shape = self.lua.eval("function(n,w,s) return lib.StatusBar:Resolve(n,w,40,s) end")(
                         name, width, shape
                     )
@@ -223,6 +224,10 @@ class GlowTests(unittest.TestCase):
             assert(Shape(nil, {kind = 'chamfer', cut = 0}) == 'square')
             assert(Shape(nil, {kind = 'rounded', radius = 10}) == 'softer')
             assert(Shape(nil, {kind = 'chamfer', cut = 5}) == 'chamfer')
+            assert(Shape(nil, {kind = 'notch', radius = 0}) == 'square')
+            assert(Shape(nil, {kind = 'notch', radius = 5}) == 'notch')
+            assert(Shape(nil, {kind = 'blade', cut = 7}) == 'blade')
+            assert(Shape('chamfer', {kind = 'blade', cut = 7}) == 'chamfer')
             assert(Shape('soft', {kind = 'chamfer', cut = 5}) == 'soft')
             assert(Shape('square', {kind = 'rounded', radius = 10}) == 'square')
             assert(Shape('missing', {kind = 'rounded', radius = 10}) == 'square')
@@ -249,6 +254,12 @@ class GlowTests(unittest.TestCase):
                 {20, {kind = 'chamfer', cut = 5}, 'chamfer-large'},
                 {40, {kind = 'chamfer', cut = 5}, 'chamfer'},
                 {80, {kind = 'chamfer', cut = 5}, 'chamfer-small'},
+                {20, {kind = 'notch', radius = 5}, 'notch-large'},
+                {40, {kind = 'notch', radius = 5}, 'notch'},
+                {80, {kind = 'notch', radius = 5}, 'notch-small'},
+                {20, {kind = 'blade', cut = 7}, 'blade-large'},
+                {40, {kind = 'blade', cut = 7}, 'blade'},
+                {80, {kind = 'blade', cut = 7}, 'blade-small'},
             }
             for _, name in ipairs({'tracer', 'pinneon'}) do
                 for _, aspect in ipairs({2.5, 4}) do
@@ -359,14 +370,14 @@ class GlowTests(unittest.TestCase):
         for file in ("LibOrbitGlow-1.0.lua", "StatusBarGlows.lua"):
             self.lua.execute((LIB / file).read_text(encoding="utf-8"))
         self.lua.execute('''
-        assert(lib.minorVersion == 13 and lib.statusBarMinor == 13)
+        assert(lib.minorVersion == 14 and lib.statusBarMinor == 14)
             assert(lib.StatusBar == savedStatusBar and lib:GetStatusBarGlowInfo('consumer') == savedDefinition)
             assert(select(3, savedStatusBar:Resolve('consumer', 160, 40, nil, {kind = 'rounded', radius = 8})) == 'own')
             savedRevision = lib.statusBarRevision
         ''')
-        older = (LIB / "StatusBarGlows.lua").read_text(encoding="utf-8").replace("local VERSION = 13", "local VERSION = 11", 1)
+        older = (LIB / "StatusBarGlows.lua").read_text(encoding="utf-8").replace("local VERSION = 14", "local VERSION = 11", 1)
         self.lua.execute(older)
-        self.lua.execute('assert(lib.statusBarMinor == 13 and lib.statusBarRevision == savedRevision)')
+        self.lua.execute('assert(lib.statusBarMinor == 14 and lib.statusBarRevision == savedRevision)')
 
     def test_equal_geometry_has_deterministic_shape_selection(self):
         self.lua.execute('''

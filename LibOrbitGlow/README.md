@@ -10,9 +10,9 @@ Let a host addon write its glow code once: whatever pack the player installs app
 no host change, and pooling, recolouring, restricted aura hosts and secret values are handled in one place.
 
 ## Implementation
-- **Modules.** `LibOrbitGlow-1.0/LibOrbitGlow-1.0.lua` (revision 13) owns the engine, the `lib.glows` registry, the
+- **Modules.** `LibOrbitGlow-1.0/LibOrbitGlow-1.0.lua` (revision 14) owns the engine, the `lib.glows` registry, the
   `Proc` lifecycle, the raw `Flipbook` sink and the `Button` (Classic) renderer; `StatusBarGlows.lua` (status-bar
-  revision 13) owns the separate status-bar registry and renderer and its `Textures/` sheets. `LibOrbitGlow-1.0.xml`
+  revision 14) owns the separate status-bar registry and renderer and its `Textures/` sheets. `LibOrbitGlow-1.0.xml`
   loads both; the TOC adds the packager-fetched LibStub for the standalone CurseForge install.
 - **Install.** Embed by copying `LibOrbitGlow-1.0/` and including `LibOrbitGlow-1.0.xml` from your TOC or XML, then
   `local lib = LibStub("LibOrbitGlow-1.0", true)`. Players install the standalone package only when an addon asks.

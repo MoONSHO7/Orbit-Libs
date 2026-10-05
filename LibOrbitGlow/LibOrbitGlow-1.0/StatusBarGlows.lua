@@ -1,5 +1,5 @@
 local lib = LibStub("LibOrbitGlow-1.0", true)
-local VERSION = 13
+local VERSION = 14
 if not lib or lib.minorVersion ~= VERSION or lib.statusBarMinor == VERSION then
     return
 end
@@ -12,8 +12,9 @@ local DEFAULT_DURATION, DEFAULT_OVERHANG = 1, 0.125
 local BODY_SUBLEVEL, CORE_SUBLEVEL = 5, 6
 local DEFAULT_CORE_ALPHA = 0.85
 local MAX_CORNER_FRACTION = 0.5
-local CONTOUR_FIELDS = { rounded = "radius", chamfer = "cut" }
-local CONTOUR_FRACTIONS = { rounded = "radiusFraction", chamfer = "cutFraction" }
+local CONTOUR_FIELDS = { rounded = "radius", chamfer = "cut", notch = "radius", blade = "cut" }
+local CONTOUR_FRACTIONS =
+    { rounded = "radiusFraction", chamfer = "cutFraction", notch = "radiusFraction", blade = "cutFraction" }
 local EMPTY_CONTOURS = {}
 local BLENDS = { ADD = true, BLEND = true, ALPHAKEY = true, MOD = true, DISABLE = true }
 
@@ -373,6 +374,12 @@ local SHAPES = {
     ["chamfer-small"] = "-chamfer-small",
     chamfer = "-chamfer",
     ["chamfer-large"] = "-chamfer-large",
+    ["notch-small"] = "-notch-small",
+    notch = "-notch",
+    ["notch-large"] = "-notch-large",
+    ["blade-small"] = "-blade-small",
+    blade = "-blade",
+    ["blade-large"] = "-blade-large",
 }
 local CONTOURS = {
     ["soft-small"] = { kind = "rounded", radiusFraction = 0.0625 },
@@ -384,6 +391,12 @@ local CONTOURS = {
     ["chamfer-small"] = { kind = "chamfer", cutFraction = 0.0625 },
     chamfer = { kind = "chamfer", cutFraction = 0.125 },
     ["chamfer-large"] = { kind = "chamfer", cutFraction = 0.25 },
+    ["notch-small"] = { kind = "notch", radiusFraction = 0.0625 },
+    notch = { kind = "notch", radiusFraction = 0.125 },
+    ["notch-large"] = { kind = "notch", radiusFraction = 0.25 },
+    ["blade-small"] = { kind = "blade", cutFraction = 0.0875 },
+    blade = { kind = "blade", cutFraction = 0.175 },
+    ["blade-large"] = { kind = "blade", cutFraction = 0.35 },
 }
 for _, baseline in ipairs({ { "tracer", "Tracer" }, { "pinneon", "Pin Neon" } }) do
     local name, label = baseline[1], baseline[2]

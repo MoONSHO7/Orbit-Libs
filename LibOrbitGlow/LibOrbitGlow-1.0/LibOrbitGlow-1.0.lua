@@ -1,5 +1,5 @@
 local MAJOR_VERSION = "LibOrbitGlow-1.0"
-local MINOR_VERSION = 13
+local MINOR_VERSION = 14
 local lib = LibStub:NewLibrary(MAJOR_VERSION, MINOR_VERSION)
 if not lib then
     return

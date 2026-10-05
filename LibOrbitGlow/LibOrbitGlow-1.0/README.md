@@ -81,19 +81,19 @@ path, definition and shape for previews; pass `nil` as `shape` to select from a 
 their behaviour. Selection is explicit `shape`, then `contour`, then square; the closest aspect ratio is chosen first,
 then the nearest corner size among registered geometry of the requested kind. Only that kind and the square fallback
 participate; equal corner errors prefer the larger fraction, then the alphabetically first shape, and equal aspect
-errors keep definition order. Contours need `lib.statusBarMinor >= 12` and use host logical units:
+errors keep definition order. Contours need `lib.statusBarMinor >= 12` (`notch`/`blade` 14) and use host logical units:
 
-| `contour` | Outline |
-|---|---|
-| `{ kind = "square" }` | Square corners |
-| `{ kind = "rounded", radius = 8 }` | Circular 8-unit corners |
-| `{ kind = "chamfer", cut = 5 }` | Straight 5-unit cuts along each adjoining edge |
+| `contour` | Outline | Bundled 2.5:1 and 4:1 shapes (% of the content's shorter side) |
+|---|---|---|
+| `{ kind = "square" }` | Square corners | `square` |
+| `{ kind = "rounded", radius = 8 }` | Circular corners | `soft-small` 6.25, `soft` 12.5, `soft-large` 17.5, `softer` 25, `round` 35, `round-large` 50 |
+| `{ kind = "chamfer", cut = 5 }` | Straight cuts along both adjoining edges | `chamfer-small` 6.25, `chamfer` 12.5, `chamfer-large` 25 |
+| `{ kind = "notch", radius = 5 }` | Concave quarter circles centred on every corner | `notch-small` 6.25, `notch` 12.5, `notch-large` 25 |
+| `{ kind = "blade", cut = 7 }` | Straight cuts on the top-left and bottom-right only | `blade-small` 8.75, `blade` 17.5, `blade-large` 35 |
 
-Bundled 2.5:1 and 4:1 sheets carry `soft-small`, `soft`, `soft-large`, `softer`, `round` and `round-large` radii (6.25,
-12.5, 17.5, 25, 35 and 50%) and `chamfer-small`, `chamfer` and `chamfer-large` cuts (6.25, 12.5 and 25%) of the source
-content's shorter side. `lib:RegisterStatusBarGlow(name, def)` takes `label`, `source`, `variants` (a `{ ratio, path }`
-list of grayscale RGBA sheets), `shapes` (name to suffix, needing `square`; default `{ square = "" }`), optional
-`contours` (shape to `{ kind = "rounded", radiusFraction }` or `{ kind = "chamfer", cutFraction }`, 0 to 0.5 of that
+`lib:RegisterStatusBarGlow(name, def)` takes `label`, `source`, `variants` (a `{ ratio, path }` list of grayscale RGBA
+sheets), `shapes` (name to suffix, needing `square`; default `{ square = "" }`), optional `contours` (shape to
+`{ kind, radiusFraction }` for rounded or notch, or `{ kind, cutFraction }` for chamfer or blade, 0 to 0.5 of that
 shorter side excluding the overhang halo), `rows`/`cols`/`frames`, `duration` (1), `overhang` (0.125 of the host
 dimension per edge), `core` (true), `coreAlpha` (0.85), `bodyBlend` (`BLEND`), `coreBlend` (`ADD`) and `ext` (`.tga`);
 sheet paths resolve to `variant.path .. shapes[shape] .. ext`. `UnregisterStatusBarGlow`, `IsStatusBarGlowRegistered`,
@@ -105,7 +105,7 @@ sheet paths resolve to `variant.path .. shapes[shape] .. ext`. `UnregisterStatus
   to half the shorter side. Tracer is the fallback for unknown status-bar names and survives unregistration.
 - Both registries replace an existing name on success, so namespace names by pack. Malformed status-bar registrations
   return `false` and keep the old definition; geometry is copied at registration, contour metadata must name an existing
-  shape, and `square` cannot take rounded or chamfer geometry. `GetGlowInfo` and `GetStatusBarGlowInfo` return the live
+  shape, and `square` cannot take corner geometry. `GetGlowInfo` and `GetStatusBarGlowInfo` return the live
   registry entry: treat it as read-only and re-register to change it.
 - Returned regions are host-owned and may feed native sinks such as `AddPandemicRegion`; once a sink owns them, let it
   drive visibility and run later presentation changes in an accessible styling window. The native flipbooks use no
