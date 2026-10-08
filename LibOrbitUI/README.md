@@ -29,10 +29,10 @@ These are Windows directory junctions. Editing an addon library path edits the s
 changes immediately. Consumer-owned fetch and package tools materialize ordinary files without replacing those
 development links.
 
-`.pkgmeta` defines the runtime package and excludes module READMEs and development metadata. A path-filtered workflow
-releases relevant changes pushed to Orbit-Libs `main` under `LibOrbitUI-MAJOR.MINOR` tags. Each release attaches a ZIP
-containing only `LibOrbitUI-1.0/` runtime files and its license, plus a SHA256 sidecar. Other libraries retain separate
-release histories.
+`.pkgmeta` excludes module READMEs, the project changelog and development metadata from the runtime package.
+A path-filtered workflow releases changes pushed to Orbit-Libs `main` under `LibOrbitUI-MAJOR.MINOR` tags. Each release
+attaches a ZIP containing only `LibOrbitUI-1.0/` runtime files and its license, plus a SHA256 sidecar. Other libraries
+retain separate release histories.
 
 The addon-owned `Orbit/.scripts/package-orbit-ui.py` verifies development links, generates Portal localization and
 records content hashes. Packaging materializes ordinary files into an explicit staging directory; it never ships
