@@ -32,7 +32,7 @@ class EmbeddedAssets(unittest.TestCase):
                         lua.globals().mockPath = path + "LibOrbitColorPicker-1.0.lua:1"
                         source = (dest / "LibOrbitColorPicker-1.0.lua").read_text(encoding="utf-8")
                         lua.execute(source)
-                        self.assertEqual(lua.globals().loadedMinor, 11)
+                        self.assertEqual(lua.globals().loadedMinor, 12)
                         self.assertEqual(lua.eval("lib:GetCheckerboardTexture()"), path + "checkerboard.tga")
                         lua.globals().mockPath = "Interface/AddOns/Later/Libs/LibOrbitColorPicker-1.0/file.lua:1"
                         lua.execute(source)
@@ -93,7 +93,7 @@ class EmbeddedAssets(unittest.TestCase):
             plainIconShown = lib.ui.ghostPin.ClassIcon.shown
             plainColorShown = lib.ui.ghostPin.Circle.shown
         ''')
-        self.assertEqual(lua.globals().loadedMinor, 11)
+        self.assertEqual(lua.globals().loadedMinor, 12)
         self.assertEqual(lua.globals().classAtlas, "classicon-MAGE")
         self.assertTrue(lua.globals().classIconShown)
         self.assertFalse(lua.globals().classColorShown)

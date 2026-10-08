@@ -83,6 +83,14 @@ function Config:CreateCheckbox(parent, label, tooltip, initialValue, callback, o
         frame:SetParent(parent)
         frame:SetHeight(CHECKBOX_HEIGHT)
         local C = Constants
+        local valueInset = C.Widget.ValueInset
+        local valueSwatch
+        if opts.valueColor then
+            valueSwatch = self:ApplyValueColorSwatch(frame, opts.valueColor)
+            valueInset = self:LayoutValueControls(frame, valueSwatch)
+        elseif frame.ValueColorSwatch then
+            frame.ValueColorSwatch:Hide()
+        end
         if frame.Button then
             frame.Button:ClearAllPoints()
             frame.Button:SetPoint("LEFT", frame, "LEFT", 0, 0)
@@ -94,7 +102,7 @@ function Config:CreateCheckbox(parent, label, tooltip, initialValue, callback, o
             frame.Label:SetJustifyH("LEFT")
             frame.Label:ClearAllPoints()
             frame.Label:SetPoint("LEFT", frame, "LEFT", C.Widget.LabelWidth + C.Widget.LabelGap, 0)
-            local rightInset = opts.valueText ~= nil and C.Widget.ValueWidth or 0
+            local rightInset = (opts.valueText ~= nil or valueSwatch) and C.Widget.ValueWidth or 0
             frame.Label:SetPoint("RIGHT", frame, "RIGHT", -rightInset, 0)
         end
         if opts.valueText ~= nil then
@@ -102,8 +110,8 @@ function Config:CreateCheckbox(parent, label, tooltip, initialValue, callback, o
                 frame.ValueText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             end
             frame.ValueText:ClearAllPoints()
-            frame.ValueText:SetPoint("RIGHT", frame, "RIGHT", -C.Widget.ValueInset, 0)
-            frame.ValueText:SetWidth(C.Widget.ValueWidth - C.Widget.ValueInset)
+            frame.ValueText:SetPoint("RIGHT", frame, "RIGHT", -valueInset, 0)
+            frame.ValueText:SetWidth(C.Widget.ValueWidth - valueInset)
             frame.ValueText:SetJustifyH("RIGHT")
             frame.ValueText:SetText(tostring(opts.valueText))
             frame.ValueText:Show()
@@ -197,13 +205,16 @@ function Config:CreateCheckbox(parent, label, tooltip, initialValue, callback, o
     end
     if tooltip then
         cb:SetScript("OnEnter", function(self)
+            local text = tooltip
+            if type(text) == "function" then
+                text = text(frame)
+            end
+            if not text or text == "" then
+                return
+            end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(label, 1, 1, 1)
-            if type(tooltip) == "function" then
-                GameTooltip:AddLine(tooltip(frame), nil, nil, nil, true)
-            else
-                GameTooltip:AddLine(tooltip, nil, nil, nil, true)
-            end
+            GameTooltip:AddLine(text, nil, nil, nil, true)
             GameTooltip:Show()
         end)
         cb:SetScript("OnLeave", GameTooltip_Hide)

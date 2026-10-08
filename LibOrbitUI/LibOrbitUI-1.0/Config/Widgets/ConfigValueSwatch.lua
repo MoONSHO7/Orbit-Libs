@@ -5,11 +5,43 @@ local Config = addon.LibOrbitUI.Config
 local SLIDER_BTN_W = 36
 local SLIDER_POPUP_LEVEL = 1000
 
+function Config:LayoutValueControls(frame, ...)
+    local C = self.configOptions.constants
+    local Pixel = self.configOptions.pixel
+    local scale = frame:GetEffectiveScale()
+    local gap = Pixel:Multiple(C.Widget.LabelGap, scale)
+    local x = -Pixel:Multiple(C.Widget.ValueInset, scale)
+    local occupiedWidth = -x
+    for index = select("#", ...), 1, -1 do
+        local control = select(index, ...)
+        if control and control:IsShown() then
+            local width = control:GetWidth()
+            local center = Pixel:Snap(x - width / 2, scale)
+            control:ClearAllPoints()
+            control:SetPoint("CENTER", frame, "RIGHT", center, 0)
+            occupiedWidth = -center + width / 2 + gap
+            x = x - width - gap
+        end
+    end
+    return occupiedWidth
+end
+
 local function HideTooltip(control)
     local tooltip = control.valueTooltip
     if tooltip and tooltip:GetOwner() == control then
         tooltip:Hide()
     end
+end
+
+local function ReleaseCheckbox(checkbox)
+    checkbox.checkboxGeneration = (checkbox.checkboxGeneration or 0) + 1
+    checkbox.valueCheckboxDefinition = nil
+    checkbox.configParentEnabled = nil
+    HideTooltip(checkbox)
+    checkbox:SetScript("OnClick", nil)
+    checkbox:SetScript("OnEnter", nil)
+    checkbox:SetScript("OnLeave", nil)
+    checkbox:Hide()
 end
 
 local function ReleaseSwatch(swatch)
@@ -47,6 +79,17 @@ local function ResolvePreviewColor(layout, curveMode, value)
 end
 
 local function RenderSwatchColor(layout, swatch, allowNone)
+    if swatch.gradientPreview and not (allowNone and swatch.value and swatch.value.none) then
+        swatch.Color:SetVertexColor(1, 1, 1, 1)
+        Config.PaintColorCurve(layout, swatch.Color, swatch.value)
+        swatch.Checkerboard:Show()
+        return
+    end
+    if swatch.Checkerboard then
+        swatch.Checkerboard:Hide()
+        local white = CreateColor(1, 1, 1, 1)
+        swatch.Color:SetGradient("HORIZONTAL", white, white)
+    end
     if allowNone and swatch.value and swatch.value.none then
         Config.PaintCheckerboard(swatch.Color, layout.pickerOptions.color.checkerboard)
         swatch.Color:SetVertexColor(1, 1, 1, 1)
@@ -65,26 +108,30 @@ function Config:OpenColorPicker(owner, options)
     return provider.open(owner, options)
 end
 
-function Config:ApplyValueColorSwatch(frame, cfg, anchorX)
+function Config:ApplyValueColorSwatch(frame, cfg, anchorX, slot)
     local Layout = self
     local Constants = self.configOptions.constants
     local Pixel = self.configOptions.pixel
     local GameTooltip = self.configOptions.tooltip
     local GameTooltip_Hide = self.configOptions.tooltipHide
     local WHITE8x8 = Constants.Texture.White
+    local swatch = slot and frame.ValueColorSwatches and frame.ValueColorSwatches[slot] or nil
+    if not slot then
+        swatch = frame.ValueColorSwatch
+    end
     local enabled = cfg.enabled
     if type(enabled) == "function" then
         enabled = enabled()
     end
     if enabled == false then
-        if frame.ValueColorSwatch then
-            ReleaseSwatch(frame.ValueColorSwatch)
+        if swatch then
+            ReleaseSwatch(swatch)
         end
         return
     end
 
-    if not frame.ValueColorSwatch then
-        local swatch = CreateFrame("Button", nil, frame, "BackdropTemplate")
+    if not swatch then
+        swatch = CreateFrame("Button", nil, frame, "BackdropTemplate")
         swatch:SetSize(Constants.Widget.ValueSwatchSize, Constants.Widget.ValueSwatchSize)
         swatch:SetBackdrop({
             bgFile = WHITE8x8,
@@ -96,16 +143,28 @@ function Config:ApplyValueColorSwatch(frame, cfg, anchorX)
         Pixel:Point(swatch.Color, "TOPLEFT", 1, -1)
         Pixel:Point(swatch.Color, "BOTTOMRIGHT", -1, 1)
         swatch.Color:SetColorTexture(1, 1, 1, 1)
-        frame.ValueColorSwatch = swatch
+        if slot then
+            frame.ValueColorSwatches = frame.ValueColorSwatches or {}
+            frame.ValueColorSwatches[slot] = swatch
+        else
+            frame.ValueColorSwatch = swatch
+        end
     end
 
     local C = Constants
-    local swatch = frame.ValueColorSwatch
     swatch.colorProvider = self.pickerOptions.color
     swatch.valueTooltip = GameTooltip
     swatch.colorGeneration = (swatch.colorGeneration or 0) + 1
     local generation = swatch.colorGeneration
     swatch.curveMode = cfg.curve and true or false
+    swatch.gradientPreview = slot ~= nil and swatch.curveMode
+    if swatch.gradientPreview and not swatch.Checkerboard then
+        swatch.Checkerboard = swatch:CreateTexture(nil, "ARTWORK")
+        swatch.Checkerboard:SetAllPoints(swatch.Color)
+        Config.PaintCheckerboard(swatch.Checkerboard, self.pickerOptions.color.checkerboard)
+        swatch.Checkerboard:SetHorizTile(true)
+        swatch.Checkerboard:SetVertTile(true)
+    end
     local initial = cfg.initialValue
     if type(initial) == "function" then
         initial = initial()
@@ -113,7 +172,8 @@ function Config:ApplyValueColorSwatch(frame, cfg, anchorX)
     swatch.value = initial
 
     swatch:ClearAllPoints()
-    local ax = anchorX or (C.Widget.ValueSwatchSize / 2 + C.Widget.ValueInset)
+    local ax = anchorX
+        or (C.Widget.ValueSwatchSize / 2 + Pixel:Multiple(C.Widget.ValueInset, frame:GetEffectiveScale()))
     swatch:SetPoint("CENTER", frame, "RIGHT", -Pixel:Snap(ax, frame:GetEffectiveScale()), 0)
     if cfg.allowNone then
         swatch:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -144,7 +204,7 @@ function Config:ApplyValueColorSwatch(frame, cfg, anchorX)
 
         Layout:OpenColorPicker(swatch, {
             initialData = initialData,
-            forceSingleColor = not swatch.curveMode,
+            forceSingleColor = cfg.singleColor or not swatch.curveMode,
             callback = function(result, wasCancelled)
                 if generation ~= swatch.colorGeneration or wasCancelled or not result then
                     return
@@ -308,7 +368,7 @@ function Config:ApplyValueSliderButton(frame, cfg, anchorX)
     btn.Text:SetText(cfg.format and cfg.format(btn.value) or tostring(btn.value))
 
     btn:ClearAllPoints()
-    local ax = anchorX or (C.Widget.ValueInset + C.Widget.ValueSwatchSize + 3 + SLIDER_BTN_W / 2)
+    local ax = anchorX or (SLIDER_BTN_W / 2 + Pixel:Multiple(C.Widget.ValueInset, frame:GetEffectiveScale()))
     btn:SetPoint("CENTER", frame, "RIGHT", -Pixel:Snap(ax, frame:GetEffectiveScale()), 0)
 
     btn:SetScript("OnClick", function()
@@ -348,23 +408,37 @@ function Config:ApplyValueSliderButton(frame, cfg, anchorX)
 end
 
 -- [ VALUE-COLUMN CHECKBOX ]--------------------------------------------------------------------------------------------
-function Config:ApplyValueCheckbox(frame, cfg, anchorX)
-    local Layout = self
+function Config:ApplyValueCheckbox(frame, cfg, anchorX, slot)
     local Constants = self.configOptions.constants
     local Pixel = self.configOptions.pixel
     local GameTooltip = self.configOptions.tooltip
     local GameTooltip_Hide = self.configOptions.tooltipHide
-    local WHITE8x8 = Constants.Texture.White
-    if not frame.ValueCheckbox then
-        frame.ValueCheckbox = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-        frame.ValueCheckbox:SetSize(Constants.Widget.ValueCheckboxSize, Constants.Widget.ValueCheckboxSize)
+    local vcb
+    if slot then
+        frame.ValueCheckboxes = frame.ValueCheckboxes or {}
+        vcb = frame.ValueCheckboxes[slot]
+    else
+        vcb = frame.ValueCheckbox
     end
+    if not vcb then
+        vcb = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+        if slot then
+            frame.ValueCheckboxes[slot] = vcb
+        else
+            frame.ValueCheckbox = vcb
+        end
+    end
+    ReleaseCheckbox(vcb)
+    local generation = vcb.checkboxGeneration
+    vcb.valueCheckboxDefinition = cfg
+    vcb:SetEnabled(Config.CanInteract(cfg))
 
     local C = Constants
-    local vcb = frame.ValueCheckbox
+    local size = Pixel:Snap(C.Widget.ValueCheckboxSize, frame:GetEffectiveScale())
+    vcb:SetSize(size, size)
     vcb.valueTooltip = GameTooltip
     vcb:ClearAllPoints()
-    local ax = anchorX or (C.Widget.ValueSwatchSize / 2 + C.Widget.ValueInset)
+    local ax = anchorX or (size / 2 + Pixel:Multiple(C.Widget.ValueInset, frame:GetEffectiveScale()))
     vcb:SetPoint("CENTER", frame, "RIGHT", -Pixel:Snap(ax, frame:GetEffectiveScale()), 0)
 
     local initial = cfg.initialValue
@@ -385,14 +459,28 @@ function Config:ApplyValueCheckbox(frame, cfg, anchorX)
         else
             GameTooltip:SetText(tt, 1, 1, 1, 1, true)
         end
+        if not Config.CanInteract(cfg) then
+            local reason = Config.GetDisabledReason(cfg)
+            if reason then
+                GameTooltip:AddLine(reason, 0.6, 0.6, 0.6, true)
+            end
+        end
         GameTooltip:Show()
     end
 
     vcb:SetScript("OnClick", function(self)
+        if
+            self.checkboxGeneration ~= generation
+            or not frame:IsVisible()
+            or self.configParentEnabled == false
+            or not Config.CanInteract(cfg)
+        then
+            return
+        end
         if cfg.callback then
             cfg.callback(self:GetChecked())
         end
-        if cfg.tooltip and GameTooltip:GetOwner() == self then
+        if self.checkboxGeneration == generation and cfg.tooltip and GameTooltip:GetOwner() == self then
             RenderTooltip(self)
         end
     end)
@@ -409,18 +497,42 @@ function Config:ApplyValueCheckbox(frame, cfg, anchorX)
     return vcb
 end
 
+function Config:ApplyValueCheckboxes(frame, configs)
+    if frame.ValueCheckbox then
+        ReleaseCheckbox(frame.ValueCheckbox)
+    end
+    local controls = {}
+    for index, cfg in ipairs(configs or {}) do
+        if Config.IsControlVisible(cfg) then
+            controls[#controls + 1] = self:ApplyValueCheckbox(frame, cfg, nil, index)
+        elseif frame.ValueCheckboxes and frame.ValueCheckboxes[index] then
+            ReleaseCheckbox(frame.ValueCheckboxes[index])
+        end
+    end
+    for index, checkbox in pairs(frame.ValueCheckboxes or {}) do
+        if index > #(configs or {}) then
+            ReleaseCheckbox(checkbox)
+        end
+    end
+    return controls
+end
+
 function Config.ReleaseValueControls(control)
     local swatch = control.ValueColorSwatch
     if swatch then
         ReleaseSwatch(swatch)
     end
+    if control.ValueColorSwatches then
+        for _, valueSwatch in pairs(control.ValueColorSwatches) do
+            ReleaseSwatch(valueSwatch)
+        end
+    end
     local checkbox = control.ValueCheckbox
     if checkbox then
-        HideTooltip(checkbox)
-        checkbox:SetScript("OnClick", nil)
-        checkbox:SetScript("OnEnter", nil)
-        checkbox:SetScript("OnLeave", nil)
-        checkbox:Hide()
+        ReleaseCheckbox(checkbox)
+    end
+    for _, valueCheckbox in pairs(control.ValueCheckboxes or {}) do
+        ReleaseCheckbox(valueCheckbox)
     end
     local slider = control.ValueSliderButton
     if slider then

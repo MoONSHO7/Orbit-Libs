@@ -26,7 +26,9 @@ sampler instance with native curves, unit data and theme policy.
   color and justification, until accepted on two frames or after ten seconds; `CreateFontSetter` takes ownership back.
   Writing a tracked region with raw `SetFont` can be overwritten during that window.
 - Physical offsets and logical coordinates are distinct inputs. Canvas callers use the logical placement sink after
-  resolving their geometry.
+  resolving their geometry. Pixel rounding tolerates conversion noise at half-step boundaries; without it, centered
+  odd-pixel components can alternate zero- and two-pixel nudges. Snap/EvenSnap ties round toward positive infinity;
+  Multiple/ToCount ties round away from zero. Values outside that tolerance still follow nearest rounding.
 - Color sampling requires ordinary editable pins; it does not implement secret unit-value curves.
 
 ## Secrets

@@ -15,6 +15,32 @@ function Config.PaintCheckerboard(texture, path)
     end
 end
 
+function Config.PaintColorCurve(layout, texture, data)
+    local pins = data and data.pins
+    texture:SetTexture(layout.configOptions.constants.Texture.White)
+    if not pins or #pins == 0 then
+        -- Legacy solid records must retain their saved preview before the first curve edit.
+        local color = data and data.r and CreateColor(data.r, data.g, data.b, data.a or 1)
+            or CreateColor(0.5, 0.5, 0.5, 1)
+        texture:SetGradient("HORIZONTAL", color, color)
+        return
+    end
+    local sortedPins = {}
+    for i, pin in ipairs(pins) do
+        sortedPins[i] = pin
+    end
+    table.sort(sortedPins, function(a, b)
+        return a.position < b.position
+    end)
+    local first = layout.pickerOptions.color.resolvePin(sortedPins[1])
+    local last = layout.pickerOptions.color.resolvePin(sortedPins[#sortedPins])
+    texture:SetGradient(
+        "HORIZONTAL",
+        CreateColor(first.r, first.g, first.b, first.a or 1),
+        CreateColor(last.r, last.g, last.b, last.a or 1)
+    )
+end
+
 function Config.IsColorPickerAvailable(provider)
     return provider.open ~= nil and (not provider.isAvailable or provider.isAvailable())
 end
@@ -67,6 +93,8 @@ function Config.InstallPickerWidgets(layout, options)
     layout.ApplyValueColorSwatch = Config.ApplyValueColorSwatch
     layout.ApplyValueSliderButton = Config.ApplyValueSliderButton
     layout.ApplyValueCheckbox = Config.ApplyValueCheckbox
+    layout.ApplyValueCheckboxes = Config.ApplyValueCheckboxes
+    layout.LayoutValueControls = Config.LayoutValueControls
     layout.CreateColorPicker = Config.CreateColorPicker
     layout.CreateColorCurvePicker = Config.CreateColorCurvePicker
     layout:RegisterControlPool("Color", "colorPool", ReleaseColor)
@@ -105,7 +133,8 @@ function Config.InstallPickerWidgets(layout, options)
                 def.previewColor,
                 def.valueCheckbox,
                 def.valueColor,
-                def.mediaCategory
+                def.mediaCategory,
+                def.valueColors
             )
             layout:AttachLabelTooltip(widget, def.label, def.tooltip)
             return widget

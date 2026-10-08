@@ -4,8 +4,8 @@ addon.LibOrbitUI.MediaMenu = Provider
 local SEARCH_HEIGHT = 26
 local MAX_VISIBLE_ROWS = 10
 local PAD, SEARCH_GAP, SCROLL_GAP = 5, 5, 10
-local CHOICE_INSET, CHECK_SIZE = 20, 16
-local CHECK_INSET, ROW_INSET = 8, 2
+local CHECK_SIZE = 16
+local CHECK_INSET, CHECK_GAP, ROW_INSET = 8, 4, 2
 local CONTENT_INSET, ROW_TEXT_RIGHT_INSET = 48, 10
 local DIVIDER_HEIGHT, OVERSCAN = 8, 1
 local POPUP_LEVEL = 1000
@@ -18,6 +18,10 @@ local DIVIDER, KEEP_OPEN = {}, {}
 function Provider:CreateProvider(context, Layout, Constants, isPreferredName)
     local Pixel = context.pixel
     local MediaMenu = { DIVIDER = DIVIDER, KEEP_OPEN = KEEP_OPEN, ROW_TEXT_RIGHT_INSET = ROW_TEXT_RIGHT_INSET }
+
+    local function ChoiceInset(scale)
+        return CHECK_SIZE + Pixel:Multiple(CHECK_INSET + CHECK_GAP, scale)
+    end
 
     function MediaMenu:Create(owner, opts)
         -- A control-parented popup inherits the settings scroll area's clipping, even on a higher strata.
@@ -196,7 +200,7 @@ function Provider:CreateProvider(context, Layout, Constants, isPreferredName)
                 slot.Content:Hide()
             else
                 slot.Content:ClearAllPoints()
-                Pixel:Point(slot.Content, "TOPLEFT", check and CHOICE_INSET or 0, 0)
+                slot.Content:SetPoint("TOPLEFT", check and ChoiceInset(slot:GetEffectiveScale()) or 0, 0)
                 slot.Content:SetPoint("BOTTOMRIGHT")
                 opts.renderRow(slot.Content, item, IsSelected(item))
                 slot.Content:EnableMouse(false)
@@ -293,10 +297,8 @@ function Provider:CreateProvider(context, Layout, Constants, isPreferredName)
                         width,
                         measure:GetUnboundedStringWidth()
                             + left
-                            + Pixel:Multiple(
-                                (type(popup.selected) == "function" and CHOICE_INSET or 0) + ROW_TEXT_RIGHT_INSET,
-                                scale
-                            )
+                            + (type(popup.selected) == "function" and ChoiceInset(scale) or 0)
+                            + Pixel:Multiple(ROW_TEXT_RIGHT_INSET, scale)
                             + pad * 2
                             + gap
                     )

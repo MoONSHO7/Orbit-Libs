@@ -11,7 +11,11 @@ Share previews and selection interactions without embedding consumer catalog, th
 matching flat popup, catalog filtering, selection, positioning and dismissal. Its fixed search header sits above a
 virtualized scroll child; the shared `ScrollBar.lua` owns wheel and drag movement. Consumers retain the closed control's
 text, texture and animated swatch and supply pooled menu previews. Color/curve constructors use the installed provider;
-font/texture constructors consume caller media services.
+font/texture constructors consume caller media services. `ConfigTexturePicker.lua` accepts API 1.12's `valueColors`
+schema list (the constructor's final optional argument), laid out in declared order after the optional checkbox.
+Picker fields reserve the same value-column width; accessories anchor to its right edge and grow left.
+`ConfigValueSwatch.lua` owns group spacing and accessory sizes; hosts use its `LayoutValueControls`
+for their own compound rows and after changing accessory visibility.
 
 ## Gotchas
 - Media services supply `list`, `fetch`, `isValid`, defaults and a localized None label. A consumer `isPreferredItem`
@@ -20,6 +24,9 @@ font/texture constructors consume caller media services.
 - Missing color editing support leaves previews visible with editing disabled; provider/session ownership prevents stale
   writes after a control is recycled.
 - Consumers supply editable authored color records and class-color policy, including transparent-color previews.
+- `valueColors` replaces `valueColor` when supplied. Each entry uses the existing `initialValue`, `callback`, `curve`,
+  `enabled`, `allowNone` and localized `tooltip` contract; curve entries retain gradient/checkerboard previews. Rebinding
+  a texture row clears every former accessory before installing the current entries.
 - Popups parent to `UIParent` to escape settings scroll clipping, anchor to their control and copy its effective scale
   on open/refresh. Screen clamping is the only outer constraint. `ConfigPickerControl` closes the detached popup on
   control hide, including inherited panel hides; never rely on popup parent visibility for cleanup.
@@ -29,7 +36,7 @@ font/texture constructors consume caller media services.
 - `RefreshItems` preserves query/focus. Generation and item guards reject closed/replaced/recycled selections. Closing
   releases rows and cancels wheel/drag motion; filtering seeks through the shared scrollbar so an old target cannot move
   the new results.
-- `createRow`/`renderRow` supply content, never menu chrome. MediaMenu owns multi-select checks and forwards private
+- `createRow`/`renderRow` supply content, never menu chrome. MediaMenu reserves the scaled check width plus a gap and forwards private
   tooltip hover handlers; single selections use only a background highlight. Closed previews belong to `frame.Control`
   and survive menu dismissal. `/reload` must verify animated art/glows, font/texture previews, search focus, scrolling
   and panel reuse; source simulations cannot certify native pixels or taint.

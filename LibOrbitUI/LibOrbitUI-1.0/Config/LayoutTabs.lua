@@ -48,27 +48,74 @@ local function EaseTowards(pixel, current, target, elapsed, scale)
     return current + ((target - current) * math.min(1, elapsed * TAB_SCROLL_ANIM_SPEED)), false
 end
 
-local function CreateOverflowGlyph(parent, text)
+local function ScrollTabs(scroll, delta)
+    local from = scroll.scrollTarget or scroll:GetHorizontalScroll()
+    local range = scroll:GetHorizontalScrollRange()
+    scroll.scrollTarget = math.min(math.max(from - delta * TAB_SCROLL_STEP, 0), range)
+    scroll.Animator:Show()
+end
+
+local function CreateOverflowGlyph(parent, text, scroll, layout)
     local glyph = parent:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
     glyph:SetText(text)
     glyph:SetTextColor(NORMAL_FONT_COLOR:GetRGB())
     local fontPath, fontHeight, fontFlags = glyph:GetFont()
     glyph:SetFont(fontPath, fontHeight - TAB_OVERFLOW_FONT_REDUCTION, fontFlags)
     glyph:Hide()
+    if layout.context.tabScrollHint then
+        local hover = CreateFrame("Frame", nil, parent)
+        hover:SetAllPoints(glyph)
+        hover:EnableMouse(true)
+        hover:SetPropagateMouseClicks(true)
+        hover:EnableMouseWheel(true)
+        local tooltip = layout.tooltip
+        local function HideHint()
+            if tooltip:IsOwned(hover) then
+                layout.tooltipHide()
+            end
+        end
+        hover:SetScript("OnEnter", function()
+            local hint = layout.context.tabScrollHint
+            if type(hint) == "function" then
+                hint = hint()
+            end
+            if not hint or hint == "" then
+                return
+            end
+            tooltip:SetOwner(hover, "ANCHOR_RIGHT")
+            tooltip:SetText(hint, 1, 1, 1, 1, true)
+            tooltip:Show()
+        end)
+        hover:SetScript("OnLeave", HideHint)
+        hover:SetScript("OnHide", HideHint)
+        hover:SetScript("OnMouseWheel", function(_, delta)
+            ScrollTabs(scroll, delta)
+        end)
+        hover:Hide()
+        glyph.hover = hover
+    end
     return glyph
+end
+
+local function SetOverflowShown(glyph, shown)
+    glyph:SetShown(shown)
+    if glyph.hover then
+        glyph.hover:SetShown(shown)
+    end
 end
 
 local function UpdateTabOverflow(scroll)
     local range = scroll:GetHorizontalScrollRange()
     local current = scroll:GetHorizontalScroll()
-    scroll.LeftOverflow:SetShown(current > TAB_OVERFLOW_EPSILON)
-    scroll.RightOverflow:SetShown(range - current > TAB_OVERFLOW_EPSILON)
+    SetOverflowShown(scroll.LeftOverflow, current > TAB_OVERFLOW_EPSILON)
+    SetOverflowShown(scroll.RightOverflow, range - current > TAB_OVERFLOW_EPSILON)
 end
 
-local function EnsureTabScroll(parent, pixel)
+local function EnsureTabScroll(parent, layout)
     if parent._tabScroll then
         return parent._tabScroll
     end
+    local pixel = layout.pixel
     local scroll = CreateFrame("ScrollFrame", nil, parent)
     scroll.buttons = {}
     scroll:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
@@ -78,12 +125,7 @@ local function EnsureTabScroll(parent, pixel)
     scroll.Content:SetSize(1, TAB_HEIGHT + TAB_DIVIDER_HEIGHT)
     scroll:SetScrollChild(scroll.Content)
     scroll:EnableMouseWheel(true)
-    scroll:SetScript("OnMouseWheel", function(self, delta)
-        local from = self.scrollTarget or self:GetHorizontalScroll()
-        local range = self:GetHorizontalScrollRange()
-        self.scrollTarget = math.min(math.max(from - delta * TAB_SCROLL_STEP, 0), range)
-        self.Animator:Show()
-    end)
+    scroll:SetScript("OnMouseWheel", ScrollTabs)
     scroll:SetScript("OnScrollRangeChanged", function(self)
         local range = self:GetHorizontalScrollRange()
         if self:GetHorizontalScroll() > range then
@@ -106,9 +148,9 @@ local function EnsureTabScroll(parent, pixel)
             scroll.Animator:Hide()
         end
     end)
-    scroll.LeftOverflow = CreateOverflowGlyph(parent, TAB_OVERFLOW_LEFT_GLYPH)
+    scroll.LeftOverflow = CreateOverflowGlyph(parent, TAB_OVERFLOW_LEFT_GLYPH, scroll, layout)
     scroll.LeftOverflow:SetPoint("RIGHT", scroll, "LEFT", -TAB_OVERFLOW_GAP, TAB_OVERFLOW_Y_OFFSET)
-    scroll.RightOverflow = CreateOverflowGlyph(parent, TAB_OVERFLOW_RIGHT_GLYPH)
+    scroll.RightOverflow = CreateOverflowGlyph(parent, TAB_OVERFLOW_RIGHT_GLYPH, scroll, layout)
     scroll.RightOverflow:SetPoint("LEFT", scroll, "RIGHT", TAB_OVERFLOW_GAP, TAB_OVERFLOW_Y_OFFSET)
     parent._tabScroll = scroll
     return scroll
@@ -118,7 +160,7 @@ function Layout:CreateTabBar(parent, tabNames, activeTab, onTabSelected, omitDiv
     local pixel = self.pixel
     local buttons = {}
     local lastBtn = nil
-    local scroll = EnsureTabScroll(parent, pixel)
+    local scroll = EnsureTabScroll(parent, self)
     local rowWidth = 0
     for index, tabName in ipairs(tabNames) do
         local btn = scroll.buttons[index]

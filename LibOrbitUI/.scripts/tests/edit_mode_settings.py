@@ -159,6 +159,7 @@ function InstallPresentation(UI)
             return { Content = {}, Header = {}, Footer = {}, ScrollFrame = NewWindow() }
         end
         function renderer:Render(panel, options)
+            self.scopeText = options.scopeText
             self.renders = (self.renders or 0) + 1
             self.widgets = {}
             for _, control in ipairs(options.controls) do options.renderControl({}, control) end
@@ -171,6 +172,9 @@ function InstallPresentation(UI)
             return widget
         end
         function renderer:LayoutFooter(_, buttons) self.buttons = buttons end
+        function renderer:ApplyControlState(control, definition)
+            control.enabled = UI.Config.CanInteract(definition)
+        end
         function renderer:Invalidate() self.invalidates = (self.invalidates or 0) + 1 end
         function renderer:Release(panel) self:Invalidate(panel) end
         return renderer
@@ -185,6 +189,20 @@ end
 
 
 class EditModeSettings(unittest.TestCase):
+    def test_dialog_scope_defaults_and_tab_exception_reach_shared_renderer(self):
+        self.lua.execute('''
+            local dialog=first.LibOrbitUI.Config.CreateDialog({name="Scopes",tooltipHide=function()end}, {
+                title="Scopes",closeLabel="Close",scopeText="This layout",tabs={
+                    {id="layout",label="Layout",controls={}},
+                    {id="account",label="Account",controls={},scopeText="Account"}}})
+            dialog:Show()
+            assert(dialog.renderer.scopeText=="This layout")
+            dialog:SelectTab("account")
+            assert(dialog.renderer.scopeText=="Account")
+            dialog:SelectTab("layout")
+            assert(dialog.renderer.scopeText=="This layout")
+        ''')
+
     def setUp(self):
         self.lua = LuaRuntime(unpack_returned_tuples=True)
         self.lua.execute(BOOT)

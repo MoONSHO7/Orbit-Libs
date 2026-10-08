@@ -28,8 +28,13 @@ folder. Settings and services belong to each consumer. API 1.6's immutable `Clie
 products own eligibility and readiness. API 1.7's shared protocol-1 `SettingsCoordinator` arbitrates Edit Mode settings
 visibility without sharing product state. API 1.8 adds consumer-local `DialogLifecycle`, context-owned dialog shutdown,
 guarded schema callbacks and complete panel release. API 1.9 adds `EscapeClose`, keeping addon-owned windows out of
-Blizzard's shared `UISpecialFrames` scan. API 1.10 adds private Orbit-style tooltips and embedding-owned mouse glyphs. `Config.CreateDialog` installs the lifecycle and Escape owners; custom shells
-opt into each explicitly. `registerWidgets(layout)` remains the consumer-owned control hook.
+Blizzard's shared `UISpecialFrames` scan. API 1.10 adds private Orbit-style tooltips and embedding-owned mouse glyphs.
+API 1.11 adds availability/input guards, disabled reasons, mixed values, effective readouts and scope/source metadata.
+API 1.12 adds ordered inline color swatches to texture pickers, including guarded writes and curve previews.
+API 1.13 adds ordered inline checkbox groups with per-entry availability, guarded writes and pooled binding expiry.
+API 1.14 adds checkbox value-column swatches and single-colour editors that preserve curve-shaped values.
+`Config.CreateDialog` installs the lifecycle and Escape owners; custom shells opt into each explicitly.
+`registerWidgets(layout)` remains the consumer-owned control hook.
 
 Orbit, Talents, Portal, Compass and Status Widget consume this source through development directory links. Packaging materializes
 regular files, preserves nested paths and includes `LICENSE`; module READMEs are development documentation.

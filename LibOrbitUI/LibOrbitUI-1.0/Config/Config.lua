@@ -31,7 +31,7 @@ local DEFAULT_CONSTANTS = {
         Height = 26,
         LabelWidth = 100,
         LabelGap = 3,
-        ValueWidth = 65,
+        ValueWidth = 80,
         ValueInset = 3,
         ValueSwatchSize = 21,
         ValueCheckboxSize = 26,
@@ -72,6 +72,8 @@ function Config.Install(target, options)
     target.ReleaseCompactCheckbox = Config.ReleaseCompactCheckbox
     target.CreateButton = Config.CreateButton
     target.CreateEditBox = Config.CreateEditBox
+    target.CreateReadout = Config.CreateReadout
+    target.CreateControlMetadata = Config.CreateControlMetadata
     target.CreateFormatInput = Config.CreateFormatInput
     target.CreatePickerControl = Config.CreatePickerControl
     target.BindPickerDropdown = Config.BindPickerDropdown

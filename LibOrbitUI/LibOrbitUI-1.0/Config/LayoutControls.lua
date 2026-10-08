@@ -1,10 +1,14 @@
 local _, addon = ...
-local Layout = addon.LibOrbitUI.Layout.Methods
+local UI = addon.LibOrbitUI
+local Layout = UI.Layout.Methods
 local SPACER_DEFAULT_HEIGHT = 20
 local LABEL_FALLBACK_WIDTH = 300
 local LABEL_WIDTH_INSET = 20
 local LABEL_MIN_HEIGHT = 20
 local LABEL_HEIGHT_PAD = 4
+local INLINE_SOURCE_GAP = 6
+local INLINE_SOURCE_MAX_SHARE = 0.5
+local INLINE_SOURCE_COLOR = { 0.72, 0.72, 0.72 }
 
 local PICKER_ANCHOR_PADDING = 25
 
@@ -240,6 +244,74 @@ function Layout:CreateScrollArea(parent, topY, bottomPad)
     return scrollFrame, scrollChild
 end
 
+local function UpdateInlineSource(control)
+    local state = control.configInlineSourceState
+    if not state then
+        return
+    end
+    local layout = state.layout
+    local widget = layout.constants.Widget
+    local scale = control:GetEffectiveScale()
+    local gap = layout.pixel:Multiple(INLINE_SOURCE_GAP, scale)
+    local accessory = control.ValueCheckbox or control.ValueColorSwatch or control.ValueSliderButton
+    local rightInset = accessory and accessory:IsShown() and widget.ValueWidth + widget.LabelGap or 0
+    local available = math.max(1, control:GetWidth() - state.swatch:GetWidth() - widget.LabelGap - rightInset - gap)
+    local sourceWidth =
+        math.min(control.configInlineSource:GetUnboundedStringWidth(), available * INLINE_SOURCE_MAX_SHARE)
+    local labelWidth = math.min(control.Label:GetUnboundedStringWidth(), math.max(1, available - sourceWidth))
+    control.Label:SetWidth(layout.pixel:Snap(labelWidth, scale))
+    control.configInlineSource:SetWidth(layout.pixel:Snap(math.max(1, available - labelWidth), scale))
+    layout.pixel:Point(control.configInlineSource, "LEFT", control.Label, "RIGHT", INLINE_SOURCE_GAP, 0)
+end
+
+function Layout:ClearInlineSource(control)
+    local state = control.configInlineSourceState
+    if not state then
+        return false
+    end
+    local changed = control.OrbitHalfWidth ~= state.halfWidth
+    control.OrbitHalfWidth = state.halfWidth
+    control.Label:SetWidth(state.labelWidth)
+    control.Label:SetWordWrap(state.wordWrap)
+    control.configInlineSourceState = nil
+    control.configInlineSource:SetText("")
+    control.configInlineSource:Hide()
+    return changed
+end
+
+function Layout:ApplyInlineSource(control, definition)
+    local source = definition.inlineSource and UI.Config.ResolveText(definition.sourceText)
+    local swatch = control.GradientBar or control.Swatch
+    if not source or source == "" or not control.Label or not swatch then
+        return self:ClearInlineSource(control)
+    end
+    if not control.configInlineSource then
+        local text = control:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        text:SetJustifyH("LEFT")
+        text:SetWordWrap(false)
+        text:SetMaxLines(1)
+        text:SetTextColor(unpack(INLINE_SOURCE_COLOR))
+        control.configInlineSource = text
+        control:HookScript("OnSizeChanged", UpdateInlineSource)
+    end
+    if not control.configInlineSourceState then
+        control.configInlineSourceState = {
+            layout = self,
+            swatch = swatch,
+            halfWidth = control.OrbitHalfWidth,
+            labelWidth = control.Label:GetWidth(),
+            wordWrap = control.Label:CanWordWrap(),
+        }
+    end
+    local changed = control.OrbitHalfWidth == true
+    control.OrbitHalfWidth = false
+    control.Label:SetWordWrap(false)
+    control.configInlineSource:SetText(source)
+    control.configInlineSource:Show()
+    UpdateInlineSource(control)
+    return changed
+end
+
 function Layout:AttachLabelTooltip(control, label, tooltip)
     local Constants = self.constants
     local GameTooltip, GameTooltip_Hide = self.tooltip, self.tooltipHide
@@ -264,10 +336,17 @@ function Layout:AttachLabelTooltip(control, label, tooltip)
     hover._label, hover._tooltip = label, tooltip
     hover:Show()
     hover:SetScript("OnEnter", function(self)
+        local tt = self._tooltip
+        local text = tt
+        if type(text) == "function" then
+            text = text(control)
+        end
+        if not text or text == "" then
+            return
+        end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(self._label or "", 1, 1, 1)
-        local tt = self._tooltip
-        GameTooltip:AddLine(type(tt) == "function" and tt(control) or tt, nil, nil, nil, true)
+        GameTooltip:AddLine(text, nil, nil, nil, true)
         GameTooltip:Show()
     end)
     hover:SetScript("OnLeave", GameTooltip_Hide)
@@ -277,9 +356,9 @@ function Layout:InitializeBaseWidgetTypes()
     local Constants = self.constants
     local pixel = self.pixel
     self:RegisterWidgetType("checkbox", function(container, def, getValue, callback)
-        local opts
+        local opts = { valueColor = def.valueColor }
         if def.valueText ~= nil then
-            opts = { valueText = type(def.valueText) == "function" and def.valueText() or def.valueText }
+            opts.valueText = type(def.valueText) == "function" and def.valueText() or def.valueText
         end
         return self:CreateCheckbox(container, def.label, def.tooltip, getValue(), callback, opts)
     end)
@@ -328,6 +407,11 @@ function Layout:InitializeBaseWidgetTypes()
 
     self:RegisterWidgetType("editbox", function(container, def, getValue, callback)
         return self:CreateEditBox(container, def.label, getValue(), callback, def.width, def.height, def.multiline, def)
+    end)
+
+    self:RegisterWidgetType("readout", function(container, def, getValue)
+        local value = getValue()
+        return self:CreateReadout(container, def.label, def.formatter and def.formatter(value) or value)
     end)
 
     self:RegisterWidgetType("formatinput", function(container, def, getValue, callback)

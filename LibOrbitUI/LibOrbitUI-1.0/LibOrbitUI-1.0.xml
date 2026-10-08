@@ -30,6 +30,7 @@
     <Script file="Config\Widgets\ConfigCheckbox.lua"/>
     <Script file="Config\Widgets\ConfigButton.lua"/>
     <Script file="Config\Widgets\ConfigEditBox.lua"/>
+    <Script file="Config\Widgets\ConfigReadout.lua"/>
     <Script file="Config\Pickers\MediaMenu.lua"/>
     <Script file="Config\Pickers\ConfigPickerControl.lua"/>
     <Script file="Config\Widgets\ConfigDropdown.lua"/>

@@ -12,7 +12,8 @@ function Config:CreateTexturePicker(
     previewColor,
     valueCheckboxCfg,
     valueColorCfg,
-    mediaCategory
+    mediaCategory,
+    valueColorsCfg
 )
     local media = self.pickerOptions.media
     local NONE_LABEL = media.noneLabel
@@ -42,6 +43,7 @@ function Config:CreateTexturePicker(
         control.Text:SetShadowColor(0, 0, 0, 1)
     end
 
+    Config.ReleaseValueControls(frame)
     frame:SetParent(parent)
     frame.selectedTexture = initialTexture or media.defaultTexture
     frame.previewColor = previewColor or { r = 0.8, g = 0.8, b = 0.8 }
@@ -127,12 +129,20 @@ function Config:CreateTexturePicker(
         frame.ValueCheckbox:Hide()
     end
 
-    if valueColorCfg then
-        local swatchX = valueCheckboxCfg and (C.Widget.ValueInset + C.Widget.ValueSwatchSize * 1.5 + 1) or nil
-        self:ApplyValueColorSwatch(frame, valueColorCfg, swatchX)
+    local valueControls = { frame.ValueCheckbox }
+    if valueColorsCfg then
+        for index, cfg in ipairs(valueColorsCfg) do
+            local swatch = self:ApplyValueColorSwatch(frame, cfg, nil, index)
+            if swatch then
+                valueControls[#valueControls + 1] = swatch
+            end
+        end
+    elseif valueColorCfg then
+        valueControls[#valueControls + 1] = self:ApplyValueColorSwatch(frame, valueColorCfg)
     elseif frame.ValueColorSwatch then
         frame.ValueColorSwatch:Hide()
     end
+    self:LayoutValueControls(frame, unpack(valueControls))
 
     frame:SetSize(C.Widget.Width, C.Widget.Height)
     return frame

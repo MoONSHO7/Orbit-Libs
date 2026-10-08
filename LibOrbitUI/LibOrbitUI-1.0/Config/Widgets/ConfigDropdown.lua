@@ -103,7 +103,7 @@ function Config:CreateDropdown(
     frame.dropMultiSelect = multiSelectCfg
 
     local function SelectedOption()
-        if frame.dropMultiSelect then
+        if frame.dropMultiSelect or frame.configMixed then
             return
         end
         for _, option in ipairs(frame.dropOptions) do
@@ -114,11 +114,17 @@ function Config:CreateDropdown(
     end
 
     local function IsOptionSelected(option)
-        return frame.dropMultiSelect and FindSelection(frame.dropValue, ValueFor(option)) ~= nil
+        return not frame.configMixed
+            and frame.dropMultiSelect
+            and FindSelection(frame.dropValue, ValueFor(option)) ~= nil
     end
 
     local function UpdatePreview()
         frame.Control.Text:SetFontObject(Constants.UI.LabelFont)
+        if frame.configMixed then
+            frame.Control.Text:SetText(frame.configMixedText)
+            return
+        end
         if frame.dropMultiSelect then
             local count = #frame.dropValue
             if count == 0 then
@@ -197,6 +203,7 @@ function Config:CreateDropdown(
                         option.action()
                         return
                     end
+                    frame.configMixed = nil
                     if frame.dropMultiSelect then
                         local value = ValueFor(option)
                         local nextValues = CopySelection(frame.dropValue)

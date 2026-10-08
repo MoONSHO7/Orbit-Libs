@@ -1,5 +1,5 @@
 -- [ LibOrbitColorPicker-1.0 ]------------------------------------------------------------------------------------------
-local MAJOR, MINOR = "LibOrbitColorPicker-1.0", 11
+local MAJOR, MINOR = "LibOrbitColorPicker-1.0", 12
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end
 
@@ -41,6 +41,8 @@ local NOTCH_HEIGHT = 6
 local NOTCH_WIDTH = 1
 local NOTCH_GAP = 2
 local CLASS_SWATCH_GAP = 8
+local CLASS_SWATCH_SIZE = 28
+local CLASS_SWATCH_ICON_PADDING = 2
 local TITLE_OFFSET_Y = -15
 local FOOTER_TOP_PADDING = 8
 local FOOTER_BOTTOM_PADDING = 4
@@ -489,27 +491,45 @@ end
 
 -- [ CLASS COLOR SWATCH ]-----------------------------------------------------------------------------------------------
 function lib:CreateClassColorSwatch()
-    if self.ui.classSwatch then return self.ui.classSwatch end
+    if self.ui.classSwatch then
+        return self.ui.classSwatch
+    end
 
     local frame = CreateFrame("Frame", nil, self.ui.frame, "BackdropTemplate")
-    frame:SetSize(SWATCH_WIDTH, SWATCH_HEIGHT)
+    frame:SetSize(CLASS_SWATCH_SIZE, CLASS_SWATCH_SIZE)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
     frame:SetBackdrop({ bgFile = WHITE_TEXTURE, edgeFile = WHITE_TEXTURE, edgeSize = SWATCH_BORDER })
     frame:SetBackdropBorderColor(0, 0, 0, 1)
+
+    frame.ClassIcon = frame:CreateTexture(nil, "ARTWORK")
 
     frame.Label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     frame.Label:SetPoint("TOP", frame, "BOTTOM", 0, -2)
     frame.Label:SetText(CL.CLASS_LBL)
     frame.Label:SetTextColor(0.7, 0.7, 0.7, 1)
 
+    frame:SetScript("OnEnter", function(self)
+        if not lib:IsOpen() then
+            return
+        end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(CL.CLASS_TT, 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    frame:SetScript("OnLeave", HideTooltip)
+
     frame:SetScript("OnDragStart", function()
-        if not lib.multiPinMode and #lib.pins > 0 then return end
+        if not lib.multiPinMode and #lib.pins > 0 then
+            return
+        end
         local c = GetCurrentClassColor()
         lib:StartDrag(c.r, c.g, c.b, c.a, true)
     end)
 
-    frame:SetScript("OnDragStop", function() lib:EndDrag() end)
+    frame:SetScript("OnDragStop", function()
+        lib:EndDrag()
+    end)
 
     self.ui.classSwatch = frame
     self:UpdateClassColorSwatch()
@@ -543,9 +563,23 @@ function lib:CreateDesaturationCheckbox()
 end
 
 function lib:UpdateClassColorSwatch()
-    if not self.ui.classSwatch then return end
+    local frame = self.ui.classSwatch
+    if not frame then
+        return
+    end
     local c = GetCurrentClassColor()
-    self.ui.classSwatch:SetBackdropColor(c.r, c.g, c.b, 1)
+    frame:SetBackdropColor(c.r, c.g, c.b, 1)
+    local padding = PixelUtil.GetNearestPixelSize(0, frame:GetEffectiveScale(), CLASS_SWATCH_ICON_PADDING)
+    local inset = SWATCH_BORDER + padding
+    frame.ClassIcon:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
+    frame.ClassIcon:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
+    local classAtlas = GetCurrentClassAtlas()
+    if classAtlas then
+        frame.ClassIcon:SetAtlas(classAtlas)
+        frame.ClassIcon:Show()
+    else
+        frame.ClassIcon:Hide()
+    end
 end
 
 function lib:SetupEventFrame()
@@ -1435,6 +1469,7 @@ local CP_LOCALE = {
         POS_TT = "Position: %.1f%%",
         NUDGE_HINT = "Arrow keys to nudge, Shift for fine",
         CLASS_LBL = "Class",
+        CLASS_TT = "Drag onto the gradient bar to use your class color.",
         DESAT_LBL = "Desat",
         DESAT_TT_TITLE = "Desaturated",
         DESAT_TT_TEXT = "Apply grayscale to the texture",
@@ -1464,6 +1499,7 @@ local CP_LOCALE = {
         POS_TT = "Position: %.1f%%",
         NUDGE_HINT = "Pfeiltasten verschieben, Umschalttaste für feine Schritte",
         CLASS_LBL = "Klasse",
+        CLASS_TT = "Auf den Verlaufsbalken ziehen, um deine Klassenfarbe zu verwenden.",
         DESAT_LBL = "Entsät.",
         DESAT_TT_TITLE = "Entsättigt",
         DESAT_TT_TEXT = "Textur in Graustufen anzeigen",
@@ -1493,6 +1529,7 @@ local CP_LOCALE = {
         POS_TT = "Position : %.1f%%",
         NUDGE_HINT = "Flèches pour ajuster, Maj pour réglage fin",
         CLASS_LBL = "Classe",
+        CLASS_TT = "Faites glisser sur la barre de dégradé pour utiliser votre couleur de classe.",
         DESAT_LBL = "Désat.",
         DESAT_TT_TITLE = "Désaturé",
         DESAT_TT_TEXT = "Appliquer des niveaux de gris à la texture",
@@ -1522,6 +1559,7 @@ local CP_LOCALE = {
         POS_TT = "Posición: %.1f%%",
         NUDGE_HINT = "Flechas para ajustar, Mayús para precisión",
         CLASS_LBL = "Clase",
+        CLASS_TT = "Arrastra a la barra de gradiente para usar el color de tu clase.",
         DESAT_LBL = "Desat.",
         DESAT_TT_TITLE = "Desaturado",
         DESAT_TT_TEXT = "Aplicar escala de grises a la textura",
@@ -1551,6 +1589,7 @@ local CP_LOCALE = {
         POS_TT = "Posição: %.1f%%",
         NUDGE_HINT = "Setas para ajustar, Shift para precisão",
         CLASS_LBL = "Classe",
+        CLASS_TT = "Arraste para a barra de gradiente para usar a cor da sua classe.",
         DESAT_LBL = "Dessat.",
         DESAT_TT_TITLE = "Dessaturado",
         DESAT_TT_TEXT = "Aplicar escala de cinza à textura",
@@ -1580,6 +1619,7 @@ local CP_LOCALE = {
         POS_TT = "Позиция: %.1f%%",
         NUDGE_HINT = "Стрелки для сдвига, Shift для точности",
         CLASS_LBL = "Класс",
+        CLASS_TT = "Перетащите на полосу градиента, чтобы использовать цвет класса.",
         DESAT_LBL = "Обесцв.",
         DESAT_TT_TITLE = "Обесцвечено",
         DESAT_TT_TEXT = "Применить градации серого к текстуре",
@@ -1609,6 +1649,7 @@ local CP_LOCALE = {
         POS_TT = "위치: %.1f%%",
         NUDGE_HINT = "방향키로 이동, Shift로 미세 조정",
         CLASS_LBL = "직업",
+        CLASS_TT = "그라데이션 바로 드래그하여 직업 색상을 사용합니다.",
         DESAT_LBL = "흑백",
         DESAT_TT_TITLE = "흑백 처리",
         DESAT_TT_TEXT = "텍스처에 회색조 적용",
@@ -1638,6 +1679,7 @@ local CP_LOCALE = {
         POS_TT = "位置: %.1f%%",
         NUDGE_HINT = "方向键微调, Shift精细调整",
         CLASS_LBL = "职业",
+        CLASS_TT = "拖到渐变条上以使用你的职业颜色。",
         DESAT_LBL = "灰度",
         DESAT_TT_TITLE = "灰度处理",
         DESAT_TT_TEXT = "对纹理应用灰度",
@@ -1667,6 +1709,7 @@ local CP_LOCALE = {
         POS_TT = "位置: %.1f%%",
         NUDGE_HINT = "方向鍵微調, Shift精細調整",
         CLASS_LBL = "職業",
+        CLASS_TT = "拖曳至漸層條以使用你的職業顏色。",
         DESAT_LBL = "灰階",
         DESAT_TT_TITLE = "灰階處理",
         DESAT_TT_TEXT = "對紋理套用灰階",

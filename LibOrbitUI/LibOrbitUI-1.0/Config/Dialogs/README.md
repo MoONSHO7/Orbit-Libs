@@ -10,7 +10,8 @@ Keep window chrome and settings behavior consistent while consumers supply produ
 `DialogChrome.lua` retains housing window art when its atlas resolves, falling back to the supplied backdrop color
 otherwise. The user confirmed housing-basic-container on Forever; this is an asset guard, not a separate client design.
 `ConfigWindow.lua` creates the movable window and exposes position changes. `ConfigPanel.lua` owns content, controls and
-sizing from host callbacks/cache policy. `ConfigDialog.lua` composes these owners and registers settings windows with
+sizing from host callbacks/cache policy. Content uses equal side padding; the outside scrollbar does not reserve an
+additional inner gutter. `ConfigDialog.lua` composes these owners and registers settings windows with
 `SettingsCoordinator.lua`.
 
 `UI.SettingsCoordinator:Register(dialog)` opts ordinary custom settings shells into Edit Mode exclusivity. All
@@ -28,9 +29,26 @@ opens. `Config.CreateDialog` installs this owner as `dialog.lifecycle`; `spec.ed
 `onClose`/`onRefresh` are callbacks on the lower-level lifecycle factory.
 
 `ConfigDialog` captures a new view generation before every render and invalidates it before close cleanup.
-`Config.GuardCallback`/`BindDefinition` reject expired writes, actions and nested value/dropdown callbacks without
-changing caller schemas. `ConfigPanel:Release` invalidates deferred sizing and releases header, content, cached tabs,
-footer and layout prompts. Context destruction destroys registered lifecycles before shared services;
+`Config.GuardCallback`/`BindDefinition` reject expired or unavailable writes, actions and nested value/dropdown callbacks
+without changing caller schemas. `ConfigPanel:ApplyControlState` shares disabled presentation with footer actions;
+disabled labels stay readable and the input blocker retains reason/help hover without adding a body explanation.
+Singular and indexed value checkboxes combine their own availability with that parent row's enabled state.
+`RenderControl` also rejects callbacks after hiding or pooled reuse. `mixed` plus consumer-localized `mixedText` renders
+indeterminate checkboxes and unknown slider/dropdown values until an explicit edit; consumers own compatible merging.
+`type="readout"` uses `getValue`/`formatter` without committing. `sourceText` and `scopeText` join existing tooltip help;
+`actionText`/`onAction` or `inheritText`/`onInherit` adds an owner action. `metadataActions` (`text`, `callback`) preserves
+additional owner choices. Each action shares the control's input and lifetime guards; release clears every callback.
+Accepted primary/accessory edits refresh tooltip providers and actions in place. Orbit's `refreshPresentation` rebuilds
+derived metadata from its captured owner; sliders keep their input while changed row heights reflow the current panel.
+Each metadata refresh expires outgoing actions; hidden action rows stay with their control until normal pool release.
+Passive help creates no rows. Colour definitions may opt into `inlineSource=true`: one clipped line after the label,
+using the existing full row width without changing its height or the panel width. Other colours stay half-width; hiding
+the source and pool release restore label constraints and width policy. The complete source remains in hover help.
+`ApplyControlState` also installs a label hover for directly created controls; clicks pass
+through to inputs, and disabled controls retain the full blocker tooltip. Format inputs keep their preview/help handler.
+`ConfigPanel:Render` carries common `scopeText` into row tooltips and accepts `emptyText`. `ConfigDialog` forwards
+`spec.scopeText`, overridden by a tab's `scopeText`; a control can declare its own exception.
+`ConfigPanel:Release` invalidates sizing and releases all controls/prompts; context destruction destroys lifecycles first.
 `dialog.lifecycle:Destroy()` releases one shell's subscriptions and prevents reopening it.
 
 `ConfigWindow.lua` and the prompt frames use Core `EscapeClose`; they never register addon globals in `UISpecialFrames`.

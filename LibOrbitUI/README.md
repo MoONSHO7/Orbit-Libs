@@ -47,8 +47,8 @@ profile/theme policy.
 - Addon repositories ignore their local library links; this repository tracks the actual source. Keep the library
   project available during development.
 - Consumer `.pkgmeta` externals use `MoONSHO7/Orbit-Libs`, a completed `LibOrbitUI-*` release's full commit SHA and
-  `path: LibOrbitUI/LibOrbitUI-1.0`. API 1.10 is independent of the package version; current consumer pins and any
-  pending repins are recorded under the workspace `orbit-libraries` skill's Current delivery section.
+  `path: LibOrbitUI/LibOrbitUI-1.0`. API 1.14 adds checkbox value-column swatches and is independent of the package
+  version; current pins and pending repins live in the workspace `orbit-libraries` skill's Current delivery section.
 - Settings and services remain private to each addon. Only the protocol-1 settings-window coordinator is shared across
   embeddings; it owns visibility claims, not SavedVariables or Blizzard Save/Revert transactions.
 - Standalone app composition registers its Blizzard AddOns category and, by default, an Enabled control. Products marked
@@ -63,4 +63,4 @@ profile/theme policy.
 
 ## References
 [Runtime contracts](LibOrbitUI-1.0/README.md), [release workflow](../.github/workflows/README.md), [.pkgmeta](.pkgmeta),
-[license](LICENSE), and [LibOrbitColorPicker](../LibOrbitColorPicker/README.md).
+[license](LICENSE), [pending changes](CHANGELOG.md), and [LibOrbitColorPicker](../LibOrbitColorPicker/README.md).

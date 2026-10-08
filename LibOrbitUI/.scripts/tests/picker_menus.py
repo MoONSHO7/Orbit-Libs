@@ -123,7 +123,7 @@ UIParent=Frame()
 addon={LibOrbitUI={Config={}}}
 Pixel={Enforce=noop,Multiple=function(_,v) return v end,Snap=function(_,v) return v end,
     Point=function(_,frame,...) frame:SetPoint(...) end}
-Constants={Texture={White="white"},Strata={FullscreenDialog="FULLSCREEN_DIALOG"},UI={LabelFont="label"},Widget={LabelWidth=110,LabelGap=10,ValueWidth=40,Width=500,Height=32}}
+Constants={Texture={White="white"},Strata={FullscreenDialog="FULLSCREEN_DIALOG"},UI={LabelFont="label"},Widget={LabelWidth=110,LabelGap=10,ValueWidth=40,ValueInset=3,Width=500,Height=32}}
 Tooltip={SetOwner=noop,SetText=noop,AddLine=noop,Show=function() state.tooltips=state.tooltips+1 end}
 '''
 
@@ -132,7 +132,7 @@ class PickerMenuTests(unittest.TestCase):
     def setUp(self):
         self.lua = LuaRuntime(unpack_returned_tuples=True)
         self.lua.execute(BOOT)
-        for file in ("Widgets/ScrollBar.lua", "Pickers/ConfigPickerControl.lua", "Pickers/MediaMenu.lua",
+        for file in ("Widgets/ScrollBar.lua", "Widgets/ConfigValueSwatch.lua", "Pickers/ConfigPickerControl.lua", "Pickers/MediaMenu.lua",
                      "Widgets/ConfigDropdown.lua", "Pickers/ConfigFontPicker.lua", "Pickers/ConfigTexturePicker.lua"):
             self.lua.execute((ROOT / "Config" / file).read_text(encoding="utf-8"), "Addon", self.lua.globals().addon)
         self.lua.execute(r'''

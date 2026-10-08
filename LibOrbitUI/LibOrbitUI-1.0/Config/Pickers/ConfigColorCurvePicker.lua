@@ -78,37 +78,7 @@ function Config:CreateColorCurvePicker(parent, label, initialCurveData, callback
 
     if not frame.UpdatePreview then
         frame.UpdatePreview = function(self)
-            local data = self.curveData
-            local pins = data and data.pins
-            self.GradientTexture:SetTexture(Constants.Texture.White)
-            if not pins or #pins == 0 then
-                -- Legacy `{r,g,b,a}` shape — render as solid so first paint matches SavedVariables, not grey.
-                if data and data.r then
-                    local c = CreateColor(data.r, data.g, data.b, data.a or 1)
-                    self.GradientTexture:SetGradient("HORIZONTAL", c, c)
-                else
-                    local grey = CreateColor(0.5, 0.5, 0.5, 1)
-                    self.GradientTexture:SetGradient("HORIZONTAL", grey, grey)
-                end
-                return
-            end
-            local function ResolvePin(pin)
-                return Layout.pickerOptions.color.resolvePin(pin)
-            end
-            local sortedPins = {}
-            for i, p in ipairs(pins) do
-                sortedPins[i] = p
-            end
-            table.sort(sortedPins, function(a, b)
-                return a.position < b.position
-            end)
-            local first = ResolvePin(sortedPins[1])
-            local last = ResolvePin(sortedPins[#sortedPins])
-            self.GradientTexture:SetGradient(
-                "HORIZONTAL",
-                CreateColor(first.r, first.g, first.b, first.a or 1),
-                CreateColor(last.r, last.g, last.b, last.a or 1)
-            )
+            Config.PaintColorCurve(Layout, self.GradientTexture, self.curveData)
         end
     end
 

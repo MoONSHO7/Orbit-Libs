@@ -109,6 +109,7 @@ function Config.CreateDialog(context, spec)
         wipe(self.controls)
         self.renderer:Render(self.OrbitPanel, {
             controls = schema,
+            scopeText = descriptor.scopeText or spec.scopeText,
             cache = false,
             renderControl = function(container, control)
                 local normalized = Config.BindDefinition(control, IsCurrent)
@@ -139,11 +140,14 @@ function Config.CreateDialog(context, spec)
                     actions = actions(self.activeTab)
                 end
                 for _, action in ipairs(actions or {}) do
-                    buttons[#buttons + 1] = layout:CreateButton(footer, action.label, function()
-                        if IsCurrent() then
-                            action.onClick(self)
-                        end
-                    end)
+                    if Config.IsControlVisible(action) then
+                        local bound = Config.BindDefinition(action, IsCurrent)
+                        local button = layout:CreateButton(footer, action.label, function()
+                            bound.onClick(self)
+                        end)
+                        self.renderer:ApplyControlState(button, action)
+                        buttons[#buttons + 1] = button
+                    end
                 end
                 buttons[#buttons + 1] = layout:CreateButton(footer, spec.closeLabel, function()
                     if IsCurrent() then

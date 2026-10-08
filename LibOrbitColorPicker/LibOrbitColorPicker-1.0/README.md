@@ -2,8 +2,8 @@
 
 ## Description
 LibStub color picker with a saturation/brightness square, hue and opacity rails, a gradient bar, drag-and-drop pins,
-class-color and recent-color swatches, and a built-in guided tour. Class pins use the player's class icon; single-color
-and multi-color (gradient) modes are supported under the MIT license.
+class-color and recent-color swatches, and a built-in guided tour. The square Class swatch and class pins use the player's
+class icon; single-color and multi-color (gradient) modes are supported under the MIT license.
 
 ## Purpose
 Gives every Orbit consumer one picker for both static colors and progress-mapped color curves (health bars, timer text),
@@ -39,6 +39,8 @@ snapshot with `wasCancelled = true`.
 
 Modes: `forceSingleColor = true` keeps exactly one pin (swatch drags replace it); multi-color allows unlimited pins —
 drag swatches onto the bar to add, drag handles to move, right-click to remove, arrow keys nudge (shift = fine).
+`UpdateClassColorSwatch` refreshes the native class atlas and its two-physical-pixel inset from the swatch border;
+the icon has no separate border, leaving the caller-resolved class colour visible behind it.
 
 ## Gotchas
 - Revision 11 accepts `tooltip`, `tooltipHide` and `classColor` in `Open(options)` and returns a session ID (or false if

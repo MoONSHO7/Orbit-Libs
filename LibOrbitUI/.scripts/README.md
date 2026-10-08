@@ -32,6 +32,20 @@ writes, while ordinary controllers retain the default setting contract.
 fresh and recycled buttons. It checks visible accept/cancel actions, callback replacement, single acceptance and
 cancellation without a write.
 
+`python .scripts/tests/control_states.py` exercises shipped schema, panel, pools and native-widget adapters. It covers
+dynamic disabled/hidden state, deferred accessory/option rejection, unavailable pickers, readable reason/help, mixed
+checkbox/slider/dropdown values, read-only effective values, source/scope hover help, multiple guarded inheritance actions,
+footer actions and disabled-to-enabled reuse. Inline colour sources retain row height, clip long localized labels/source
+within narrow rows, refresh without recreating inputs, and restore half-width/wrapping on hide and pooled reuse.
+Texture-row cases cover two curve swatches with independent labels/editors, guarded writes, simulated non-overlap
+geometry and dual-to-single-to-none pooled reuse, including rejection of callbacks from released picker sessions.
+Checkbox groups cover independent values/tooltips, ordered spacing, parent/child availability, captured callback
+expiry, native art retention and indexed/singular/empty/sparse pool transitions.
+Checkbox-row swatches cover single-colour curve transport, value-text spacing, separate input, guarded writes and reuse.
+The checkbox/slider templates, loaded MinimalSlider enable behavior and
+affected native input/alpha APIs match Retail `09b9db7` (12.1.0.69933) and Forever
+`e3ecc27` (1.60.1.70205); native focus, input and rendering still require both clients.
+
 `python .scripts/tests/escape_close.py` loads the shipped API 1.9 owner. It verifies local Escape consumption, custom
 close ownership, combat rejection, asynchronous propagation restore and the absence of taint-sensitive global close
 registration anywhere in the runtime.
@@ -39,6 +53,10 @@ registration anywhere in the runtime.
 `python .scripts/tests/font_refusal.py` loads the shipped Text owner against a client that refuses cold `SetFont`
 calls and replays them once the file loads. It checks the latest request wins, shadow/color/justification survive,
 repairs settle or time out and font-object setters take ownership; native font loading still needs a cold game start.
+
+`python .scripts/tests/pixel_rounding.py` checks the shipped Pixel owner across display/frame scales, centered odd/even
+sizes, both coordinate signs, half-step ties and genuine subpixel offsets. Nudges must advance evenly and reverse
+without drift; signed-count conventions and secret passthrough stay intact.
 
 `python .scripts/tests/tooltips.py` checks private and borrowed tooltip ownership, secret geometry, pixel borders,
 consumer-local asset paths, localized mouse hints and byte-identical relocation of the original mouse TGAs.
@@ -49,7 +67,7 @@ consumer-local asset paths, localized mouse hints and byte-identical relocation 
   exit/suspend, enter combat, reopen and check BugSack. Repeat without Orbit, including a picker or focused input during
   close.
 - The runtime XML loads coordination/lifecycle before ConfigDialog. Orbit's `check-library-api.py` rejects packages
-  missing API 1.9 or its required owners; published consumer pins still require a verified library release.
+  missing its required API and owners; published consumer pins still require a verified library release.
 
 ## References
 [Dialog contract](../LibOrbitUI-1.0/Config/Dialogs/README.md), [library project](../README.md).

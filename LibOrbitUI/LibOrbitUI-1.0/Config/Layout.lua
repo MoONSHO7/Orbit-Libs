@@ -13,6 +13,8 @@ local BASE_POOLS = {
     Label = "labelPool",
     Description = "descriptionPool",
     Tabs = "tabsPool",
+    Readout = "readoutPool",
+    ControlMetadata = "controlMetadataPool",
 }
 local LAYOUT_PADDING = 10
 local HALF_ROW_GAP = 6
@@ -23,6 +25,38 @@ function Layout:RegisterControlPool(typeName, poolName, cleanup)
 end
 
 function Layout:ReleaseControl(control)
+    if control.configInlineSourceState then
+        self:ClearInlineSource(control)
+    end
+    control.configBinding = nil
+    control.configPresentation = nil
+    control.configMixed = nil
+    control.configMixedText = nil
+    control.configMixedLabel = nil
+    if control.configMixedMark then
+        control.configMixedMark:Hide()
+    end
+    if control._disabledOverlay then
+        control._disabledOverlay:SetScript("OnEnter", nil)
+        control._disabledOverlay:SetScript("OnLeave", nil)
+        control._disabledOverlay:Hide()
+    end
+    if control.configStateApplied then
+        control.configStateApplied = nil
+        control:SetAlpha(1)
+        if control.Label then
+            control.Label:SetIgnoreParentAlpha(false)
+        end
+        if control.SetEnabled then
+            control:SetEnabled(true)
+        end
+        for _, field in ipairs({ "Slider", "Control", "EditBox" }) do
+            local child = control[field]
+            if child and child.SetEnabled then
+                child:SetEnabled(true)
+            end
+        end
+    end
     if control.OrbitType == "EditBox" then
         control.EditBox:SetScript("OnEditFocusLost", nil)
         control.EditBox:SetScript("OnEnterPressed", nil)
@@ -73,6 +107,9 @@ function Layout:RecycleControls(controls)
 end
 
 function Layout:Reset(container)
+    if container then
+        container.configRelayout = nil
+    end
     local controls = self.containerControls[container]
     if controls then
         self:RecycleControls(controls)
@@ -95,13 +132,22 @@ function Layout:Reset(container)
     end
 end
 
-function Layout:AddControl(container, frame)
+function Layout:AddControl(container, frame, after)
     frame:SetParent(container)
     frame:ClearAllPoints()
     frame:Show()
 
     self.containerControls[container] = self.containerControls[container] or {}
-    table.insert(self.containerControls[container], frame)
+    local controls = self.containerControls[container]
+    if after then
+        for index, control in ipairs(controls) do
+            if control == after then
+                table.insert(controls, index + 1, frame)
+                return
+            end
+        end
+    end
+    table.insert(controls, frame)
 end
 
 function Layout:Stack(container, startY, spacing)
@@ -215,6 +261,11 @@ function UI.Layout:Create(context, constants)
             scroll.Animator:Hide()
             scroll.scrollTarget = nil
         end
+    end)
+    layout:RegisterControlPool("ControlMetadata", "controlMetadataPool", function(control)
+        control.onAction = nil
+        control.text:SetText("")
+        control.Action:Hide()
     end)
     for _, typeName in ipairs({ "Header", "Label", "Description" }) do
         layout:RegisterControlPool(typeName, BASE_POOLS[typeName], function(control)

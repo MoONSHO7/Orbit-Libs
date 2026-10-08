@@ -1,6 +1,12 @@
 local _, addon = ...
 local UI = addon.LibOrbitUI
 local WOW_REFERENCE_HEIGHT = 768
+local ROUNDING_EPSILON = 1e-7
+
+local function RoundNearest(value)
+    -- Logical/physical conversion must not flip mathematically equal half-step ties.
+    return math.floor(value + 0.5 + ROUNDING_EPSILON)
+end
 
 UI.Pixel = {}
 
@@ -58,7 +64,7 @@ function UI.Pixel:Create(options)
         end
 
         local step = pixelScale / frameScale
-        return math.floor(value / step + 0.5) * step
+        return RoundNearest(value / step) * step
     end
 
     -- Center-anchored odd pixel sizes cannot place both edges on the grid.
@@ -74,7 +80,7 @@ function UI.Pixel:Create(options)
             frameScale = 1
         end
         local step = screenScale / frameScale
-        return math.floor(value / (2 * step) + 0.5) * 2 * step
+        return RoundNearest(value / (2 * step)) * 2 * step
     end
 
     function Pixel:SnapSize(width, height, scale, centerAnchored)
@@ -123,7 +129,7 @@ function UI.Pixel:Create(options)
             frameScale = 1
         end
         local step = screenScale / frameScale
-        return sign * math.max(math.floor(abs + 0.5), 1) * step
+        return sign * math.max(RoundNearest(abs), 1) * step
     end
 
     function Pixel:ToCount(value, scale)
@@ -136,7 +142,7 @@ function UI.Pixel:Create(options)
         end
         local count = value / (screenScale / frameScale)
         local sign = count < 0 and -1 or 1
-        return sign * math.floor(math.abs(count) + 0.5)
+        return sign * RoundNearest(math.abs(count))
     end
 
     function Pixel:BorderInset(frame, fallbackSize)

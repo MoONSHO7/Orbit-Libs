@@ -2,5 +2,5 @@ local _, addon = ...
 
 addon.LibOrbitUI = {
     VERSION_MAJOR = 1,
-    VERSION_MINOR = 10,
+    VERSION_MINOR = 14,
 }
