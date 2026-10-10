@@ -24,17 +24,18 @@ releases relevant changes pushed to Orbit-Libs `main` under `LibOrbitColorPicker
 only the Lua, XML, checkerboard and MIT license under `LibOrbitColorPicker-1.0/`; a SHA256 sidecar accompanies it. Other
 libraries retain separate release histories.
 
-`.scripts/tests/embedded_assets.py` executes revision 12 from materialized Orbit, Status and renamed-host paths, both
+`.scripts/tests/embedded_assets.py` executes revision 13 from materialized Orbit, Status and renamed-host paths, both
 path separators and Latin/CJK locales. It checks checkerboard/license closure, duplicate-copy asset ownership, and the
-class-icon/plain-colour pin visual switch. This supports retaining the existing path contract; native rendering and
-editor-session verification remain in-game gates.
+class-icon/plain-colour pin visual switch. `single_color_drops.py` drives the real swatch drag scripts through drop,
+apply, cancel and manual edits. These support the path and drop contracts; native rendering and editor-session
+verification remain in-game gates.
 
 ## Gotchas
 - Orbit and Status Widget pin a full commit from a completed `LibOrbitColorPicker-*`
   [GitHub release](https://github.com/MoONSHO7/Orbit-Libs/releases) and select
   `path: LibOrbitColorPicker/LibOrbitColorPicker-1.0`. Verify publication and runtime assets before updating consumers.
   Release numbers are independent of the runtime API revision; the monorepo's first picker release is 1.2.
-- API revision 12 accepts explicit tooltip, hide and class-color callbacks, returns a session ID from `Open`, and
+- API revision 13 accepts explicit tooltip, hide and class-color callbacks, returns a session ID from `Open`, and
   exposes its checkerboard texture. Class pins and the square Class swatch use Blizzard's native current-class atlas;
   the swatch retains its class-coloured background. It has no Orbit dependency and supplies a private tooltip by default.
 - The main Lua file remains excluded from StyLua to preserve its existing formatting.

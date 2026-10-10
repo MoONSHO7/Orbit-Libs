@@ -37,8 +37,9 @@ Callback result: apply with pins →
 (`desaturated` only when `hasDesaturation` was set); clear all pins → `nil`; cancel (escape / close) → the pre-edit
 snapshot with `wasCancelled = true`.
 
-Modes: `forceSingleColor = true` keeps exactly one pin (swatch drags replace it); multi-color allows unlimited pins —
-drag swatches onto the bar to add, drag handles to move, right-click to remove, arrow keys nudge (shift = fine).
+Modes: `forceSingleColor = true` edits one pin in place through the colour area; while that pin exists only the Class
+swatch drags, and its drop replaces the pin. Multi-color allows unlimited pins — drag swatches onto the bar to add, drag
+handles to move, right-click to remove, arrow keys nudge (shift = fine).
 `UpdateClassColorSwatch` refreshes the native class atlas and its two-physical-pixel inset from the swatch border;
 the icon has no separate border, leaving the caller-resolved class colour visible behind it.
 

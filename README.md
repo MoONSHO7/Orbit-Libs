@@ -24,20 +24,18 @@ The path-filtered workflows run on relevant changes pushed to `main` and share r
 1.1, LibOrbitColorPicker 1.2 and LibOrbitGlow 1.8; LibOrbitSearch starts at 1.0. Package versions are independent of
 runtime API revisions.
 
-Orbit's build resolves the latest published stable release separately for each owned library declared in its
-`.scripts/library-releases.json`. It verifies the runtime ZIP, checksum, source metadata and tag commit, then shares
-one exact lock across validation and packaging. Companion consumers retain full commit SHA and runtime-path pins in
-`.pkgmeta`. After a library release, verify its assets and complete each affected consumer's delivery strategy; a
-source push alone does not deliver a new library to installed addons. Players receive it in the next consumer release.
+Orbit, Portal, Compass, Status and Talents manually pin each verified library release commit and nested runtime path
+in `.pkgmeta`. BigWigs fetches and embeds those externals normally; automatic latest-release selection is deferred.
+After publication, verify the assets, update affected consumer pins and validate their packages. Players receive the
+library update through a subsequent consumer addon release.
 
 ## Gotchas
 - LibOrbitUI exports a private API per embedding addon, sharing only its Edit Mode settings-window coordinator.
   ColorPicker, Glow and Search use LibStub's shared versioned instances; product settings and services retain their own
   runtime owners.
 - Each project and runtime directory retains its own license. There is no repository-wide MIT grant for LibOrbitUI.
-- GitHub's repository-wide latest release can belong to any library. Orbit selects completed stable releases by exact
-  library-prefixed numeric versions. Its annotated addon release tag retains the build lock so packaging cannot select
-  a newer library after validation; companions do not use this resolver.
+- GitHub's repository-wide latest release and BigWigs' `tag: latest` can belong to another library. Verify the
+  requested library's completed namespaced release before updating its full commit pin.
 - Addon development paths are junctions into this repository. Packages contain ordinary files, never workspace links.
   Existing addon folder and runtime library names remain stable.
 - The migration preserved the old local Git metadata under this checkout's `.git/legacy-repositories/`; it is not

@@ -1,5 +1,5 @@
 -- [ LibOrbitColorPicker-1.0 ]------------------------------------------------------------------------------------------
-local MAJOR, MINOR = "LibOrbitColorPicker-1.0", 12
+local MAJOR, MINOR = "LibOrbitColorPicker-1.0", 13
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end
 
@@ -520,9 +520,6 @@ function lib:CreateClassColorSwatch()
     frame:SetScript("OnLeave", HideTooltip)
 
     frame:SetScript("OnDragStart", function()
-        if not lib.multiPinMode and #lib.pins > 0 then
-            return
-        end
         local c = GetCurrentClassColor()
         lib:StartDrag(c.r, c.g, c.b, c.a, true)
     end)
@@ -643,7 +640,8 @@ function lib:CreateDragTexture()
 end
 
 function lib:StartDrag(r, g, b, a, isClassDrag)
-    if not self.multiPinMode and #self.pins > 0 then return end
+    -- Single-color mode edits its pin in place; only a class drag may replace it.
+    if not self.multiPinMode and #self.pins > 0 and not isClassDrag then return end
     self.drag.active = true
     self.drag.color = { r = r, g = g, b = b, a = a or 1 }
     self.drag.type = isClassDrag and "class" or nil
@@ -663,6 +661,7 @@ function lib:EndDrag()
         local x = GetCursorPosition() / self.ui.gradientBar:GetEffectiveScale()
         local barLeft = self.ui.gradientBar.SegmentContainer:GetLeft()
         local barWidth = self.ui.gradientBar.SegmentContainer:GetWidth()
+        if not self.multiPinMode then wipe(self.pins) end
         self:AddPin(ClampPosition((x - barLeft) / barWidth), self.drag.color, self.drag.type)
     end
     self.drag.color = nil
@@ -948,7 +947,6 @@ function lib:CreateRecentColorsBar()
         swatch:SetScript("OnLeave", HideTooltip)
 
         swatch:SetScript("OnDragStart", function(self)
-            if not lib.multiPinMode and #lib.pins > 0 then return end
             if not self.ColorModel then return end
             lib:StartDrag(self.ColorModel.r, self.ColorModel.g, self.ColorModel.b, self.ColorModel.a)
         end)
@@ -1268,7 +1266,6 @@ function lib:CreateCurrentSwatch()
     frame.Label:SetTextColor(0.7, 0.7, 0.7, 1)
 
     frame:SetScript("OnDragStart", function()
-        if not lib.multiPinMode and #lib.pins > 0 then return end
         local r, g, b = lib.ui.colorSelect:GetColorRGB()
         local a = lib.ui.colorSelect and lib.ui.colorSelect:GetColorAlpha() or 1
         lib:StartDrag(r, g, b, a)
