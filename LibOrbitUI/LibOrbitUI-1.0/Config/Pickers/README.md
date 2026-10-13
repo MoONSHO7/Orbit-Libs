@@ -21,6 +21,9 @@ for their own compound rows and after changing accessory visibility.
 - Media services supply `list`, `fetch`, `isValid`, defaults and a localized None label. A consumer `isPreferredItem`
   predicate keeps matching choices alphabetized above a non-selectable divider; the library does not discover or persist
   consumer catalogs.
+- API 1.15 accepts optional `media.fontLabel(name)` for closed font previews, menu labels and search; selection and
+  callbacks retain the catalog name. Optional `media.firstFont` places that name before the ordinary font groups when
+  it matches the search. Consumers without these fields retain raw names and the existing ordering.
 - Missing color editing support leaves previews visible with editing disabled; provider/session ownership prevents stale
   writes after a control is recycled.
 - Consumers supply editable authored color records and class-color policy, including transparent-color previews.

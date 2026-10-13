@@ -33,6 +33,7 @@ API 1.11 adds availability/input guards, disabled reasons, mixed values, effecti
 API 1.12 adds ordered inline color swatches to texture pickers, including guarded writes and curve previews.
 API 1.13 adds ordered inline checkbox groups with per-entry availability, guarded writes and pooled binding expiry.
 API 1.14 adds checkbox value-column swatches and single-colour editors that preserve curve-shaped values.
+API 1.15 adds consumer-local font labels and an optional leading font choice without changing stored catalog names.
 `Config.CreateDialog` installs the lifecycle and Escape owners; custom shells opt into each explicitly.
 `registerWidgets(layout)` remains the consumer-owned control hook.
 

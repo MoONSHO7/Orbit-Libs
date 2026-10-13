@@ -29,7 +29,7 @@ function Heirlooms:Build()
                 if pending then
                     Native.RequestItem(self, itemID)
                 end
-                local carried = GetItemCount and GetItemCount(itemID) > 0
+                local carried = C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID) > 0
                 entries[#entries + 1] = {
                     kind = "heirlooms",
                     id = itemID,

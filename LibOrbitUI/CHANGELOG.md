@@ -1,5 +1,7 @@
 # Unreleased
 
+- API 1.15 lets consumers label and search font choices separately from their saved names and place a choice first.
+
 - Fixed uneven portrait and component nudges caused by half-pixel rounding at fractional UI scales.
 
 - API 1.14 adds colour swatches to checkbox value columns, retaining single-colour curve editing and pooled cleanup.

@@ -8,6 +8,7 @@ local CONTROL_PREVIEW = 12
 
 function Config:CreateFontPicker(parent, label, initialFont, callback, valueColorCfg)
     local media = self.pickerOptions.media
+    local FontLabel = media.fontLabel or tostring
     local MediaMenu = self.mediaMenu
     local Layout = self
     local Constants = self.configOptions.constants
@@ -34,7 +35,7 @@ function Config:CreateFontPicker(parent, label, initialFont, callback, valueColo
     local function UpdatePreview()
         local path = media.fetch("font", frame.selectedFont)
         frame.Control.Text:SetFont(path and media.isValid(path) and path or media.fallbackFont, CONTROL_PREVIEW, "")
-        frame.Control.Text:SetText(frame.selectedFont)
+        frame.Control.Text:SetText(FontLabel(frame.selectedFont))
     end
 
     function frame:ShowDropdown()
@@ -42,6 +43,8 @@ function Config:CreateFontPicker(parent, label, initialFont, callback, valueColo
             frame.Dropdown = MediaMenu:Create(frame.Control, {
                 rowHeight = ROW_HEIGHT,
                 maxHeight = MAX_HEIGHT,
+                firstItem = media.firstFont,
+                itemText = FontLabel,
                 createRow = function(rowParent)
                     local row = CreateFrame("Button", nil, rowParent)
                     row.Text = row:CreateFontString(nil, "OVERLAY")
@@ -55,12 +58,12 @@ function Config:CreateFontPicker(parent, label, initialFont, callback, valueColo
                     local path = media.fetch("font", name)
                     if path and media.isValid(path) then
                         row.Text:SetFont(path, ROW_PREVIEW, "")
-                        row.Text:SetText(name)
+                        row.Text:SetText(FontLabel(name))
                         local color = isSelected and 1 or 0.9
                         row.Text:SetTextColor(color, color, color, 1)
                     else
                         row.Text:SetFont(media.fallbackFont, ROW_PREVIEW, "")
-                        row.Text:SetText(name .. " (!)")
+                        row.Text:SetText(FontLabel(name) .. " (!)")
                         row.Text:SetTextColor(1, 0.5, 0.5, 1)
                     end
                 end,

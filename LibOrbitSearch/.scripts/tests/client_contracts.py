@@ -209,6 +209,116 @@ class ClientContracts(unittest.TestCase):
             assert(#search:Query("needle",options)==2)
         ''')
 
+    def test_item_queries_use_namespaced_apis_on_both_client_shapes(self):
+        for family, bag_slots, gear_slot in (("retail", 5, 1), ("forever", 4, 0)):
+            for deprecated in ("absent", "throwing"):
+                with self.subTest(family=family, deprecated=deprecated):
+                    lua = runtime(True)
+                    lua.globals().bagSlots = bag_slots
+                    lua.globals().gearSlot = gear_slot
+                    if deprecated == "throwing":
+                        lua.execute('''
+                            function GetItemInfo() error("deprecated GetItemInfo called") end
+                            function GetItemCount() error("deprecated GetItemCount called") end
+                        ''')
+                    lua.execute('''
+                        NUM_TOTAL_EQUIPPED_BAG_SLOTS=bagSlots
+                        INVSLOT_AMMO=gearSlot==0 and 0 or nil
+                        mock.bags={{id=11,link="item:11"}}
+                        mock.items={ ["item:11"]={name="needle bag"}, ["item:12"]={name="needle gear"} }
+                        local getSlots=C_Container.GetContainerNumSlots
+                        local lastBag=-1
+                        C_Container.GetContainerNumSlots=function(bag)
+                            assert(bag>=0 and bag<=bagSlots)
+                            lastBag=math.max(lastBag,bag)
+                            return getSlots(bag)
+                        end
+                        C_Item.GetItemCount=function(id) assert(id==11);return 7 end
+                        GetInventoryItemLink=function(_,slot) return slot==gearSlot and "item:12" or nil end
+                        GetInventoryItemID=function(_,slot) assert(slot==gearSlot);return 12 end
+                        GetInventoryItemTexture=function() return 1 end
+                        local bags,gear=Search("bags"),Search("equipped")
+                        local bag=bags:Query("consumable",options)[1]
+                        local equipped=gear:Query("consumable",options)[1]
+                        assert(bag and bag.id==11 and bag.name=="needle bag" and bag.count==7)
+                        assert(bag.secure.type=="item" and bag.secure.item=="item:11")
+                        assert(equipped and equipped.id==12 and equipped.name=="needle gear")
+                        assert(equipped.secure.type=="item" and equipped.secure.item=="item:12")
+                        assert(lib:GetIndexSourceState("bags")=="ready")
+                        assert(lib:GetIndexSourceState("equipped")=="ready")
+                        assert(bags:IsEntryCurrent(bag) and gear:IsEntryCurrent(equipped))
+                        assert(lastBag==bagSlots and #mock.errors==0)
+                    ''')
+
+    def test_heirloom_keywords_and_actions_follow_namespaced_item_data(self):
+        lua = runtime(True)
+        lua.execute('''
+            function GetItemInfo() error("deprecated GetItemInfo called") end
+            function GetItemCount() error("deprecated GetItemCount called") end
+            C_Heirloom={GetHeirloomItemIDs=function() return {88} end,PlayerHasHeirloom=function() return true end,
+                GetHeirloomInfo=function() return "needle band",1 end}
+            Enum.ItemBind={ToWoWAccount=2}
+            INVTYPE_FINGER="Finger"
+            lib:SetItemKeywordTerms({ring="ring",warbound="warbound"})
+            C_Item.GetItemInfo=function(id)
+                assert(id==88)
+                return "needle band",nil,7,0,0,"Armor","Other",1,"INVTYPE_FINGER",1,0,0,0,2,nil,nil,false
+            end
+            local carried=true
+            C_Item.GetItemCount=function(id) assert(id==88);return carried and 1 or 0 end
+            local search=Search("heirlooms")
+            local first=search:Query("ring",options)[1]
+            assert(first and first.id==88 and not first.passive)
+            assert(first.secure.type=="item" and first.secure.item=="88")
+            assert(search:Query("warbound",options)[1]==first and search:Query("armor",options)[1]==first)
+            carried=false;FireEvent("BAG_UPDATE_DELAYED")
+            assert(not search:IsEntryCurrent(first))
+            local absent=search:Query("ring",options)[1]
+            assert(absent and absent.passive and not absent.secure)
+            carried=true;FireEvent("BAG_UPDATE_DELAYED")
+            assert(search:Query("ring",options)[1].secure.item=="88")
+            C_Item.GetItemCount=nil;lib:NotifyIndexSourceChanged("heirlooms")
+            local noAction=search:Query("ring",options)[1]
+            assert(noAction and noAction.passive and not noAction.secure)
+            C_Item.GetItemInfo=nil;lib:NotifyIndexSourceChanged("heirlooms")
+            assert(search:Query("needle",options)[1].id==88 and #search:Query("ring",options)==0)
+            assert(lib:GetIndexSourceState("heirlooms")=="ready" and #mock.errors==0)
+        ''')
+
+    def test_required_item_methods_retire_rows_and_recover_on_native_wake(self):
+        for kind, missing in (("bags", "namespace"), ("equipped", "namespace"),
+                              ("bags", "GetItemInfo"), ("equipped", "GetItemInfo"),
+                              ("bags", "GetItemCount")):
+            with self.subTest(kind=kind, missing=missing):
+                lua = runtime(True)
+                lua.globals().kind = kind
+                lua.globals().missing = missing
+                lua.execute('''
+                    function GetItemInfo() error("deprecated GetItemInfo called") end
+                    function GetItemCount() error("deprecated GetItemCount called") end
+                    mock.bags={{id=11,link="item:11"}}
+                    mock.items={ ["item:11"]={name="needle item"} }
+                    GetInventoryItemLink=function(_,slot) return slot==1 and "item:11" or nil end
+                    GetInventoryItemID=function() return 11 end
+                    GetInventoryItemTexture=function() return 1 end
+                    local search=Search(kind)
+                    local old=search:Query("needle",options)[1]
+                    assert(old and search:IsEntryCurrent(old))
+                    local items=C_Item
+                    local method=items[missing]
+                    if missing=="namespace" then C_Item=nil else items[missing]=nil end
+                    FireEvent("ADDON_LOADED","Blizzard_Test")
+                    assert(not search:IsEntryCurrent(old) and #search:Query("needle",options)==0)
+                    assert(lib:GetIndexSourceState(kind)=="unsupported")
+                    assert(lib._eventFrame.events.ADDON_LOADED and not lib._eventFrame.events.GET_ITEM_INFO_RECEIVED)
+                    if missing=="namespace" then C_Item=items else items[missing]=method end
+                    FireEvent("ADDON_LOADED","Blizzard_Test")
+                    local recovered=search:Query("needle",options)[1]
+                    assert(recovered and recovered.id==11 and recovered~=old)
+                    assert(search:IsEntryCurrent(recovered) and lib:GetIndexSourceState(kind)=="ready")
+                    assert(lib._eventFrame.events.GET_ITEM_INFO_RECEIVED and #mock.errors==0)
+                ''')
+
     def test_currency_ids_nested_duplicate_headers_and_error_restore(self):
         lua = runtime(True)
         lua.execute('''
@@ -301,7 +411,7 @@ class ClientContracts(unittest.TestCase):
             C_ToyBox={GetNumFilteredToys=function() return 1 end,GetToyFromIndex=function() return 77 end,
                 GetToyInfo=function() return 77,"needle toy",1 end}
             assert(Search("toys"):Query("needle",options)[1].secure.macrotext=="/use item:77")
-            GetItemCount=function() return 0 end
+            C_Item.GetItemCount=function() return 0 end
             C_Heirloom={GetHeirloomItemIDs=function() return {88} end, PlayerHasHeirloom=function() return true end,
                 GetHeirloomInfo=function() return "needle heirloom",1 end}
             local heirloom=Search("heirlooms"):Query("needle",options)[1]

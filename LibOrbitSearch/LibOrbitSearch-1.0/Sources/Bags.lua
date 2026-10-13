@@ -30,7 +30,7 @@ function Bags:GetAvailability()
     then
         return "unsupported", "missing:bag-range"
     end
-    return Native.Require(_G, "GetItemInfo", "GetItemCount")
+    return Native.Require(C_Item, "GetItemInfo", "GetItemCount")
 end
 
 local function IsQuestItem(bag, slot)
@@ -57,7 +57,7 @@ function Bags:Build()
             local info = C_Container.GetContainerItemInfo(bag, slot)
             if info and info.itemID and info.hyperlink and not seen[info.itemID] then
                 seen[info.itemID] = true
-                local name, _, quality = GetItemInfo(info.hyperlink)
+                local name, _, quality = C_Item.GetItemInfo(info.hyperlink)
                 local keywords, pending = ItemKeywords.Build(info.hyperlink, IsQuestItem(bag, slot))
                 if not name or pending then
                     Native.RequestItem(self, info.itemID)
@@ -69,7 +69,7 @@ function Bags:Build()
                     name = name,
                     lowerName = lib.Fold(name .. " " .. keywords),
                     icon = info.iconFileID,
-                    count = GetItemCount(info.itemID),
+                    count = C_Item.GetItemCount(info.itemID),
                     quality = quality,
                     secure = { type = "item", item = info.hyperlink },
                 }

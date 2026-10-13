@@ -33,11 +33,11 @@ function ItemKeywords.Build(itemRef, isQuestItem)
     if isQuestItem and _G.BAG_FILTER_QUEST_ITEMS then
         parts[#parts + 1] = _G.BAG_FILTER_QUEST_ITEMS
     end
-    if not itemRef or not GetItemInfo then
+    if not itemRef or not C_Item or not C_Item.GetItemInfo then
         return table.concat(parts, " ")
     end
     local _, _, _, _, _, itemType, itemSubType, _, equipLoc, _, _, _, _, bindType, _, _, isCraftingReagent =
-        GetItemInfo(itemRef)
+        C_Item.GetItemInfo(itemRef)
     if not itemType then
         return table.concat(parts, " "), true
     end

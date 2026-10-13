@@ -9,7 +9,7 @@ An addon that needs search creates an instance, lists the kinds its search inclu
 Sources and providers register once per session and serve every instance that lists their kind.
 
 ## Implementation
-Load order is the XML manifest: `LibOrbitSearch-1.0.lua` claims LibStub revision 5 (API/provider/index contract 1),
+Load order is the XML manifest: `LibOrbitSearch-1.0.lua` claims LibStub revision 6 (API/provider/index contract 1),
 `NativeContract.lua` defines native function/event checks and item-load receipts, the engine files follow, `Sources/`
 registers the built-in index sources, and `Finalize.lua` adopts existing sessions and reconciles demand after the
 complete install.

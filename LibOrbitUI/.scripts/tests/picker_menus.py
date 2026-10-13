@@ -227,6 +227,7 @@ class PickerMenuTests(unittest.TestCase):
         self.lua.execute(r'''
             local font=layout:CreateFontPicker(Frame(),"Font","OrbitFont",Write)
             assert(font.Control.Text.font[1]=="font/OrbitFont")
+            assert(font.Control.Text:GetText()=="OrbitFont")
             local menu=Open(font)
             assert(menu.rows[1].Content.Text.font[1]=="font/OrbitFont")
             Choose(menu,3);assert(font.Control.Text.font[1]=="font/Other" and not font.Control.isOpen)
@@ -236,6 +237,40 @@ class PickerMenuTests(unittest.TestCase):
             Choose(menu,4);assert(texture.Control.Texture.texture=="statusbar/Other")
             local frame=PreviewMenu(20);menu=Open(frame);menu:Hide()
             assert(frame.Control.Swatch.animating and frame.Control.Text:GetText()=="Glow")
+        ''')
+
+    def test_localized_font_labels_keep_catalog_values_and_leading_choice(self):
+        self.lua.execute(r'''
+            local media=layout.pickerOptions.media
+            media.firstFont="Default"
+            media.fontLabel=function(name) return name=="Default" and "Standard" or name end
+            media.list=function() return {"Other","Default","OrbitFont"} end
+            local font=layout:CreateFontPicker(Frame(),"Font","Default",Write)
+            assert(font.Control.Text:GetText()=="Standard" and font.Control.Text.font[1]=="font/Default")
+            local menu=Open(font)
+            assert(menu.filtered[1]=="Default" and menu.filtered[2]=="OrbitFont" and #menu.filtered==4)
+            assert(menu.rows[1].Content.Text:GetText()=="Standard" and menu.rows[1].Selected:IsShown())
+            menu.Search:SetText("stan")
+            menu:RefreshItems(media.list())
+            assert(#menu.filtered==1 and menu.filtered[1]=="Default" and menu.Search:HasFocus())
+            assert(menu.Search:GetText()=="stan")
+            Choose(menu,1)
+            assert(state.value=="Default" and state.writes==1 and font.selectedFont=="Default")
+            assert(font.Control.Text:GetText()=="Standard")
+            table.insert(layout.fontPool,font)
+            local reused=layout:CreateFontPicker(Frame(),"Font","Other",function(name)
+                state.rebound=name
+            end)
+            assert(reused==font and reused.Control.Text:GetText()=="Other")
+            menu=Open(reused)
+            menu.Search:SetText("Other")
+            assert(#menu.filtered==1 and menu.filtered[1]=="Other")
+            menu.Search:SetText("")
+            Choose(menu,1)
+            assert(state.rebound=="Default" and state.writes==1 and reused.Control.Text:GetText()=="Standard")
+            media.isValid=function() return false end
+            menu=Open(reused)
+            assert(menu.rows[1].Content.Text:GetText()=="Standard (!)")
         ''')
 
     def test_scroll_uses_bounded_stable_rows_and_does_not_refresh_when_idle(self):

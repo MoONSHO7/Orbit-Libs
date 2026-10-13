@@ -15,7 +15,11 @@ local Equipped = {
 }
 
 function Equipped:GetAvailability()
-    return Native.Require(_G, "GetInventoryItemLink", "GetInventoryItemID", "GetItemInfo", "GetInventoryItemTexture")
+    local state, reason = Native.Require(_G, "GetInventoryItemLink", "GetInventoryItemID", "GetInventoryItemTexture")
+    if state ~= "ready" then
+        return state, reason
+    end
+    return Native.Require(C_Item, "GetItemInfo")
 end
 
 function Equipped:Build()
@@ -24,7 +28,7 @@ function Equipped:Build()
     for slot = firstSlot, LAST_SLOT do
         local link = GetInventoryItemLink("player", slot)
         if link then
-            local name, _, quality, _, _, _, _, _, _, iconPath = GetItemInfo(link)
+            local name, _, quality, _, _, _, _, _, _, iconPath = C_Item.GetItemInfo(link)
             local itemID = GetInventoryItemID("player", slot)
             if name and itemID then
                 local keywords, pending = ItemKeywords.Build(link)

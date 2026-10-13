@@ -779,12 +779,13 @@ C_Container = {
         return { isQuestItem = item ~= nil and mock.quest[item.id] == true, isActive = false }
     end,
 }
-function GetItemInfo(link)
+GetItemInfo, GetItemCount = nil, nil
+function C_Item.GetItemInfo(link)
     local item = mock.items[link]
     if not item then return nil end
     return item.name, link, 1, 0, 0, "Consumable", "Other", 1, "", 1, 0, 0, 0, 1, nil, nil, false
 end
-function GetItemCount() return 1 end
+function C_Item.GetItemCount() return 1 end
 function BagSearch()
     local lib = LibStub("LibOrbitSearch-1.0")
     local search = lib:NewSearch({ kinds = { { kind = "bags", label = "Bags" } } })

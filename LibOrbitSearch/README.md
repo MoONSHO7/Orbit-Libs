@@ -22,8 +22,9 @@ contains only the Lua, XML and license under `LibOrbitSearch-1.0/`, with a SHA25
 scoped index demand, rebuild notifications, matching, provider lifecycle, reentrancy, recents, typed ids and embedded
 upgrades. `client_contracts.py` covers missing native contracts, per-consumer event demand, source states/action
 retirement, all ten native sources, bounded item-load receipts and asynchronous lookup, including synchronous completion
-and demand cancellation. Orbit's search bridge/host/presenter and row-validity suites cover consumer integration. Mocks
-do not certify Blizzard APIs, taint or rendering.
+and demand cancellation. Item-source cases use `C_Item` with deprecated globals absent or throwing, including missing
+methods and recovery. Orbit's search bridge/host/presenter and row-validity suites cover consumer integration. Mocks do
+not certify Blizzard APIs, taint or rendering.
 
 ## Gotchas
 - Consumers pin a full commit from a completed `LibOrbitSearch-*`

@@ -27,9 +27,10 @@ collection is ready. Product selection stays in each Search instance.
 | Heirlooms.lua | Catalog ownership is separate from carried item ownership. Only carried heirlooms receive item-use attributes; absent quality enums omit enrichment. Item-load receipts recover missing catalog names and keyword data. This source does not manufacture a collection-creation action. |
 | Toys.lua | Filtered count and filtered index remain paired. Ownership/use and optional favorite metadata are independent; item-load completion refreshes missing names. |
 
-`ItemKeywords.lua` resolves optional binding enums at use and retains caller-localized synonyms. Its second return marks
-incomplete native item metadata for the caller's load receipt. Unsupported enrichment never becomes a fabricated item or
-movement property.
+Item metadata and counts use `C_Item.GetItemInfo` and `C_Item.GetItemCount`; bag readiness requires both, equipment only
+metadata. Heirloom catalog ownership stays available without them, but carried-item actions require the count method.
+`ItemKeywords.lua` enriches through optional `C_Item.GetItemInfo` and binding enums, retaining caller-localized synonyms.
+Its second return marks incomplete native metadata for the caller's load receipt; unavailable enrichment is omitted.
 
 ## Gotchas
 - API presence establishes the ability to query, not an unlocked gameplay feature. Consumers own conservative client
@@ -38,8 +39,11 @@ movement property.
   row-number or skill-line history into a new semantic identity.
 - Item/spell hyperlinks and secure attributes are immutable snapshots from a build; the consumer checks current index
   generation before hardware action, drag or menu dispatch.
+- Retail 12.1.5 and current Forever removed the deprecated item globals; never use them as availability evidence or
+  fallback calls. Native item metadata can still be uncached after the namespaced API is available.
 
 ## References
 [Engine contract](../README.md), library `.scripts/tests/client_contracts.py`; Blizzard live 12.1.0.69933 and forever
 1.60.1.69977 generated docs, ContainerFrame, PetFrame, EditModeManager, native ProfessionsBook and Classic
-PetCollection.
+PetCollection. Item contracts were rechecked against Retail 12.1.5.70340 (`7b27d6845`) and Forever 1.60.1.70338
+(`943764493`): generated ItemDocumentation and loaded `Blizzard_ObjectAPI/Mainline/Item.lua` use `C_Item` on both.
