@@ -15,7 +15,6 @@ function Frame(parent, kind, template)
     frame.level = 1
     function frame:SetAlpha(value) self.alpha = value end
     function frame:SetIgnoreParentAlpha(value) self.ignoreParentAlpha = value end
-    function frame:SetPropagateMouseClicks(value) self.propagateMouseClicks = value end
     function frame:SetTextInsets(...) self.textInsets={...} end
     function frame:SetWordWrap(value) self.wordWrap=value end
     function frame:CanWordWrap() return self.wordWrap~=false end
@@ -69,6 +68,7 @@ class ControlStates(unittest.TestCase):
         self.lua = LuaRuntime(unpack_returned_tuples=True)
         self.lua.execute(BOOT + HARNESS)
         for source in (
+            "Core/Callbacks.lua", "Core/EscapeClose.lua",
             "Config/ConfigSchema.lua", "Config/Layout.lua", "Config/LayoutControls.lua", "Config/Widgets/ConfigButton.lua",
             "Config/Widgets/ConfigReadout.lua",
             "Config/Widgets/ConfigEditBox.lua",
@@ -140,6 +140,47 @@ class ControlStates(unittest.TestCase):
             state.disabled = true
             local disabled = Render(definition)
             assert(#layout.containerControls[container] == 2,"Disabled reasons never add a body row")
+        ''')
+
+    def test_label_hover_creation_and_refresh_in_combat_preserve_click_through(self):
+        self.lua.execute(r'''
+            state.combat=true
+            local definition={type="test",label="Value",tooltip="Help"}
+            local control=Render(definition)
+            assert(control._tooltipHover.propagateMouseClicks)
+            renderer:ApplyControlState(control,definition)
+            assert(control._tooltipHover.propagateMouseClicks)
+            control._tooltipHover:Fire("OnEnter")
+            assert(Tooltip.lines[1]=="Help")
+        ''')
+
+    def test_overflow_hint_creation_in_combat_inherits_click_through(self):
+        self.lua.execute(r'''
+            local base=Frame
+            function Frame(parent,kind,template)
+                local frame=base(parent,kind,template)
+                function frame:GetFont() return "font",12,"" end
+                function frame:GetHorizontalScroll() return self.horizontal or 0 end
+                function frame:GetHorizontalScrollRange()
+                    return math.max(0,(self.child and self.child:GetWidth() or 0)-self:GetWidth())
+                end
+                function frame:SetHorizontalScroll(value) self.horizontal=value end
+                return frame
+            end
+            NORMAL_FONT_COLOR={GetRGB=function() return 1,1,1 end}
+            context.tabScrollHint="Scroll tabs"
+            state.combat=true
+        ''')
+        self.lua.execute((RUNTIME / "Config/LayoutTabs.lua").read_text(encoding="utf-8"),
+                         "Test", self.lua.globals().addon)
+        self.lua.execute(r'''
+            Mixin(layout,addon.LibOrbitUI.Layout.Methods)
+            local parent=Frame()
+            layout:CreateTabBar(parent,{"A very long first tab","Another long second tab"},"",noop,true)
+            local scroll=parent._tabScroll
+            assert(scroll.LeftOverflow.hover.propagateMouseClicks and scroll.RightOverflow.hover.propagateMouseClicks)
+            scroll.RightOverflow.hover:Fire("OnEnter")
+            assert(Tooltip.title=="Scroll tabs")
         ''')
 
     def test_unavailable_widgets_and_is_enabled_reject_commits(self):

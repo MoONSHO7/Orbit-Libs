@@ -39,6 +39,8 @@ for their own compound rows and after changing accessory visibility.
 - `RefreshItems` preserves query/focus. Generation and item guards reject closed/replaced/recycled selections. Closing
   releases rows and cancels wheel/drag motion; filtering seeks through the shared scrollbar so an old target cannot move
   the new results.
+- Escape uses Core's `EscapeClose` owner; combat opening or reopening cannot retain a consumed keyboard state. The
+  search box keeps its own focused Escape dismissal and releases focus with the popup.
 - `createRow`/`renderRow` supply content, never menu chrome. MediaMenu reserves the scaled check width plus a gap and forwards private
   tooltip hover handlers; single selections use only a background highlight. Closed previews belong to `frame.Control`
   and survive menu dismissal. `/reload` must verify animated art/glows, font/texture previews, search focus, scrolling

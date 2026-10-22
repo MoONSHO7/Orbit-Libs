@@ -370,14 +370,6 @@ function Provider:CreateProvider(context, Layout, Constants, isPreferredName)
         search:SetScript("OnEscapePressed", function()
             popup:Hide()
         end)
-        popup:SetScript("OnKeyDown", function(self, key)
-            if not InCombatLockdown() then
-                self:SetPropagateKeyboardInput(key ~= "ESCAPE")
-            end
-            if key == "ESCAPE" then
-                self:Hide()
-            end
-        end)
         popup:SetScript("OnEvent", function()
             if not popup:IsMouseOver() and not owner:IsMouseOver() then
                 popup:Hide()
@@ -385,9 +377,6 @@ function Provider:CreateProvider(context, Layout, Constants, isPreferredName)
         end)
         popup:SetScript("OnShow", function(self)
             self:RegisterEvent("GLOBAL_MOUSE_DOWN")
-            if not InCombatLockdown() then
-                self:SetPropagateKeyboardInput(true)
-            end
         end)
         popup:SetScript("OnHide", function(self)
             self.generation = self.generation + 1
@@ -400,6 +389,7 @@ function Provider:CreateProvider(context, Layout, Constants, isPreferredName)
                 MediaMenu.active = nil
             end
         end)
+        addon.LibOrbitUI.EscapeClose:Attach(popup)
         return popup
     end
     return MediaMenu

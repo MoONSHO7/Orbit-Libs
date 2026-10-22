@@ -180,7 +180,6 @@ local function ApplyControlTooltip(renderer, control, definition)
         else
             hover:SetAllPoints(control.Label or control)
         end
-        hover:SetPropagateMouseClicks(true)
     end
 end
 

@@ -23,6 +23,7 @@ Development addons link directly to that directory:
 | `Orbit-Talents/Orbit-Talents/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 | `Orbit-Portal/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 | `Orbit-Compass/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
+| `Orbit-NavBuilder/Orbit_Navigation/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 | `Orbit-StatusWidget/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 
 These are Windows directory junctions. Editing an addon library path edits the same physical files; `/reload` reads the
@@ -49,6 +50,9 @@ profile/theme policy.
 - Consumer `.pkgmeta` externals use `MoONSHO7/Orbit-Libs`, a completed `LibOrbitUI-*` release's full commit SHA and
   `path: LibOrbitUI/LibOrbitUI-1.0`. API 1.15 adds localized font labels and a leading choice, independently of the package
   version; current pins and pending repins live in the workspace `orbit-libraries` skill's Current delivery section.
+- Equal-endpoint range-slider dragging retains the existing API. The local fix still needs a verified library release,
+  consumer repins and addon releases; development junctions alone do not deliver it. Automatic latest-release selection
+  remains deferred.
 - Settings and services remain private to each addon. Only the protocol-1 settings-window coordinator is shared across
   embeddings; it owns visibility claims, not SavedVariables or Blizzard Save/Revert transactions.
 - Standalone app composition registers its Blizzard AddOns category and, by default, an Enabled control. Products marked

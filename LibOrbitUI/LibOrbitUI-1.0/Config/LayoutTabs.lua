@@ -63,10 +63,9 @@ local function CreateOverflowGlyph(parent, text, scroll, layout)
     glyph:SetFont(fontPath, fontHeight - TAB_OVERFLOW_FONT_REDUCTION, fontFlags)
     glyph:Hide()
     if layout.context.tabScrollHint then
-        local hover = CreateFrame("Frame", nil, parent)
+        local hover = CreateFrame("Frame", nil, parent, "InsecureMouseClicksPropagatorTemplate")
         hover:SetAllPoints(glyph)
         hover:EnableMouse(true)
-        hover:SetPropagateMouseClicks(true)
         hover:EnableMouseWheel(true)
         local tooltip = layout.tooltip
         local function HideHint()

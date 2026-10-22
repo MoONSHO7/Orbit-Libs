@@ -23,8 +23,10 @@ sampler instance with native curves, unit data and theme policy.
   font-object defaults; these entry points have different ownership contracts.
 - A cold client refuses `SetFont` (returns false) until the file loads, then replays the refused request on a later
   frame over newer fonts. `ApplyFont` tracks refused regions and reapplies each one's latest request, keeping shadow,
-  color and justification, until accepted on two frames or after ten seconds; `CreateFontSetter` takes ownership back.
-  Writing a tracked region with raw `SetFont` can be overwritten during that window.
+  color and justification, until accepted on two consecutive accessible frames or ten seconds from the first refusal.
+  Deferred repairs recheck `CanBeAccessedInContext` before any region read or write: aura initialization can precede
+  native access restrictions. Denied or secret access waits within the original deadline; expiry needs no region access.
+  `CreateFontSetter` takes ownership back. Raw `SetFont` writes can be overwritten during the repair window.
 - Physical offsets and logical coordinates are distinct inputs. Canvas callers use the logical placement sink after
   resolving their geometry. Pixel rounding tolerates conversion noise at half-step boundaries; without it, centered
   odd-pixel components can alternate zero- and two-pixel nudges. Snap/EvenSnap ties round toward positive infinity;
@@ -35,7 +37,8 @@ sampler instance with native curves, unit data and theme policy.
 Tooltip appearance checks native width and effective scale before changing native chrome or calculating borders.
 Restricted geometry retains native chrome; no global tooltip setters or positioning methods are replaced.
 Pixel helpers preserve opaque values for supported sinks, and font color restoration passes captured values directly
-back to the region. Consumers remain responsible for supplying ordinary geometry for grid calculations.
+back to the region. Deferred font repair guards the access query's potentially secret result before branching.
+Consumers remain responsible for supplying ordinary geometry for grid calculations.
 
 ## References
 [Library contracts](../README.md), [Core contexts](../Core/README.md), [Movement](../Movement/README.md).

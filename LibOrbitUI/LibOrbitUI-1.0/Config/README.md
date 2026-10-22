@@ -19,7 +19,8 @@ Colour rows may explicitly set `inlineSource=true`; `LayoutControls` fits that s
 or changing row height. Readouts resolve an effective value without a setting writer. The
 library owns presentation and input rejection; consumers own dependencies, source meaning and inheritance actions.
 `LayoutTabs` accepts optional `context.tabScrollHint` text/provider for the overflow glyphs. Their hover targets preserve
-wheel scrolling and click propagation; the private hint closes on leave, overflow disappearance and pooled release.
+wheel scrolling and inherit click propagation from Blizzard's template at creation, including during combat. The
+private hint closes on leave, overflow disappearance and pooled release.
 
 `ConfigPickerWidgets.lua` registers picker schemas, shared curve previews and cleanup. Texture schemas accept API
 1.12's ordered `valueColors` list; API 1.13 exposes ordered `valueCheckboxes` for consumer-owned compound widgets.

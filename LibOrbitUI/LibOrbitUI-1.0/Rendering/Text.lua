@@ -40,15 +40,24 @@ end
 local function RepairRefusedFonts(frame)
     local now = GetTime()
     for region, request in pairs(refusedFonts) do
-        request.expiresAt = request.expiresAt or now + REPAIR_TIMEOUT_SECONDS
-        local shadowR, shadowG, shadowB, shadowA = region:GetShadowColor()
-        local shadowX, shadowY = region:GetShadowOffset()
-        local accepted = SetBackedFont(region, request.path, request.size, request.flags)
-        region:SetShadowColor(shadowR, shadowG, shadowB, shadowA)
-        region:SetShadowOffset(shadowX, shadowY)
-        request.acceptedFrames = accepted and request.acceptedFrames + 1 or 0
-        if request.acceptedFrames >= SETTLED_REPAIR_FRAMES or now > request.expiresAt then
+        if now >= request.expiresAt then
             refusedFonts[region] = nil
+        else
+            -- Aura initialization can precede access restrictions; recheck before every deferred region operation.
+            local canAccess = region:CanBeAccessedInContext()
+            if not issecretvalue(canAccess) and canAccess then
+                local shadowR, shadowG, shadowB, shadowA = region:GetShadowColor()
+                local shadowX, shadowY = region:GetShadowOffset()
+                local accepted = SetBackedFont(region, request.path, request.size, request.flags)
+                region:SetShadowColor(shadowR, shadowG, shadowB, shadowA)
+                region:SetShadowOffset(shadowX, shadowY)
+                request.acceptedFrames = accepted and request.acceptedFrames + 1 or 0
+                if request.acceptedFrames >= SETTLED_REPAIR_FRAMES then
+                    refusedFonts[region] = nil
+                end
+            else
+                request.acceptedFrames = 0
+            end
         end
     end
     if not next(refusedFonts) then
@@ -64,7 +73,7 @@ local function TrackRefusedFont(region, path, size, flags, accepted)
         return
     end
     if not request then
-        request = {}
+        request = { expiresAt = GetTime() + REPAIR_TIMEOUT_SECONDS }
         refusedFonts[region] = request
     end
     request.path, request.size, request.flags, request.acceptedFrames = path, size, flags, 0

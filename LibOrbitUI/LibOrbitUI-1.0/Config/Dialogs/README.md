@@ -45,7 +45,8 @@ Passive help creates no rows. Colour definitions may opt into `inlineSource=true
 using the existing full row width without changing its height or the panel width. Other colours stay half-width; hiding
 the source and pool release restore label constraints and width policy. The complete source remains in hover help.
 `ApplyControlState` also installs a label hover for directly created controls; clicks pass
-through to inputs, and disabled controls retain the full blocker tooltip. Format inputs keep their preview/help handler.
+through to inputs through its native propagation template, with no restricted setter on state refresh. Disabled
+controls retain the full blocker tooltip. Format inputs keep their preview/help handler.
 `ConfigPanel:Render` carries common `scopeText` into row tooltips and accepts `emptyText`. `ConfigDialog` forwards
 `spec.scopeText`, overridden by a tab's `scopeText`; a control can declare its own exception.
 `ConfigPanel:Release` invalidates sizing and releases all controls/prompts; context destruction destroys lifecycles first.

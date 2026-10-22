@@ -7,6 +7,7 @@ local STEP = 1
 local FILL_H = 4
 local HIT_PAD = 8
 local EDGE_PAD = 6
+local DRAG_SCALE = 1.2
 
 function Config:CreateRangeSlider(parent, width)
     local GameTooltip = self.configOptions.tooltip
@@ -102,13 +103,13 @@ function Config:CreateRangeSlider(parent, width)
         return Snap(math.max(0, math.min(1, frac)) * 100)
     end
 
-    local active
+    local active, overlapPending
     local function Stop()
         if not active then
             return
         end
         active.tex:SetScale(1)
-        active = nil
+        active, overlapPending = nil, nil
         rs:SetScript("OnUpdate", nil)
         if rs._onDragStop then
             rs._onDragStop()
@@ -125,6 +126,15 @@ function Config:CreateRangeSlider(parent, width)
         local v = CursorVal()
         if not v then
             return
+        end
+        if overlapPending then
+            if v == rs.low then
+                return
+            end
+            active.tex:SetScale(1)
+            active = v < rs.low and lowThumb or highThumb
+            active.tex:SetScale(DRAG_SCALE)
+            overlapPending = nil
         end
         local oldLow, oldHigh = rs.low, rs.high
         if active == lowThumb then
@@ -145,7 +155,8 @@ function Config:CreateRangeSlider(parent, width)
             return
         end
         active = t
-        t.tex:SetScale(1.2)
+        overlapPending = rs._dual and rs.low == rs.high
+        t.tex:SetScale(DRAG_SCALE)
         if rs._onDragStart then
             rs._onDragStart()
         end

@@ -326,7 +326,7 @@ function Layout:AttachLabelTooltip(control, label, tooltip)
         return
     end
     if not hover then
-        hover = CreateFrame("Frame", nil, control)
+        hover = CreateFrame("Frame", nil, control, "InsecureMouseClicksPropagatorTemplate")
         hover:SetPoint("TOPLEFT", control, "TOPLEFT", 0, 0)
         hover:SetPoint("BOTTOMLEFT", control, "BOTTOMLEFT", 0, 0)
         hover:SetWidth(Constants.Widget.LabelWidth + Constants.Widget.LabelGap)

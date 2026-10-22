@@ -33,9 +33,11 @@ borrowed pixel/tooltip objects retain their original owner.
   transitions. Without it, every subscribed visibility event applies.
 - Context creation consumes Rendering's pixel API. The entry XML loads those declarations before consumers construct
   contexts; alphabetical folder loading is not supported.
-- `EscapeClose` enables keyboard input once during frame construction. Its Escape path rejects combat, consumes only
-  that key for one frame and restores propagation asynchronously; every other close path remains owned by the window's
-  lifecycle.
+- `EscapeClose` owns an unanchored `UIParent` keyboard proxy, leaving the window's keyboard state to its caller.
+  Attachment is safe during combat: the proxy stays hidden until eligible. Owner hide and combat entry hide it;
+  reopening or regen restores propagation before arming/showing it. Escape invokes the window's close owner and queues
+  at most one restoration timer. Window visibility and combat are rechecked before any deferred rearm. Owned-window
+  raise/lower/level/strata post-hooks keep the proxy above its owner without restoring a consumed key.
 
 ## Secrets
 Storage accepts ordinary editable data and rejects secret values. A context's private tooltip and rendering services

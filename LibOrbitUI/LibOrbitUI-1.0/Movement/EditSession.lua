@@ -34,7 +34,7 @@ function SessionMixin:Refresh(reason)
         blocked = "exit"
     elseif not manager:IsShown() or manager:IsEditModeLocked() then
         blocked = "hidden"
-    elseif InCombatLockdown() then
+    elseif reason == "PLAYER_REGEN_DISABLED" or InCombatLockdown() then
         blocked = "combat"
     elseif self.options.blockEncounter ~= false and C_InstanceEncounter.IsEncounterInProgress() then
         blocked = "encounter"

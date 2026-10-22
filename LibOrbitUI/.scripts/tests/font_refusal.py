@@ -11,6 +11,8 @@ HARNESS = r'''
 addon = {}
 table.freeze = function(value) return value end
 mock = {now = 0, ready = false, replays = {}, frames = {}, errors = {}}
+SECRET_ACCESS = {}
+function issecretvalue(value) return value == SECRET_ACCESS end
 BACKING = {path = "Fonts/FRIZQT__.TTF", size = 12, flags = ""}
 UIParent = {GetEffectiveScale = function() return 1 end}
 function GetTime() return mock.now end
@@ -30,6 +32,7 @@ function CreateFont(name)
 end
 function NewRegion(silentSetFont)
     local region = {color = {1, 1, 1, 1}, justifyH = "LEFT", justifyV = "MIDDLE", shadow = {0, 0, 0, 1}, offset = {1, -1}}
+    region.accessChecks, region.nativeCalls = 0, 0
     region.font = {path = BACKING.path, size = BACKING.size, flags = BACKING.flags}
     function region:SetFontObject(object)
         self.fontObject = object
@@ -62,6 +65,22 @@ function NewRegion(silentSetFont)
     function region:SetShadowColor(r, g, b, a) self.shadow = {r, g, b, a} end
     function region:GetShadowOffset() return unpack(self.offset) end
     function region:SetShadowOffset(x, y) self.offset = {x, y} end
+    for name, method in pairs(region) do
+        if type(method) == "function" then
+            region[name] = function(self, ...)
+                self.nativeCalls = self.nativeCalls + 1
+                assert(not self.forbidden and not (self.restricted and mock.aurasSecret) and not self.secretAccess,
+                    "Attempt to access forbidden object from code tainted by an AddOn")
+                return method(self, ...)
+            end
+        end
+    end
+    function region:CanBeAccessedInContext()
+        self.accessChecks = self.accessChecks + 1
+        if self.secretAccess then return SECRET_ACCESS end
+        return not self.forbidden and not (self.restricted and mock.aurasSecret)
+    end
+    function region:IsForbidden() return self.forbidden == true end
     return region
 end
 -- Once the file loads, the client replays each refused request on a frame before addon OnUpdate scripts run.
@@ -89,7 +108,7 @@ end
 ORBIT_FONT = "Interface/AddOns/Orbit/Core/assets/Fonts/OrbitSansCondensedUI-ExtraBold.ttf"
 
 
-class FontRefusal(unittest.TestCase):
+class FontRefusalCases:
     def setUp(self):
         self.lua = LuaRuntime()
         self.lua.execute(HARNESS)
@@ -98,6 +117,7 @@ class FontRefusal(unittest.TestCase):
                 "Host", self.lua.globals().addon
             )
         self.lua.globals().ORBIT_FONT = ORBIT_FONT
+        self.lua.globals().CLIENT_BUILD = self.CLIENT_BUILD
 
     def test_latest_request_survives_the_replay_of_a_refused_cold_request(self):
         self.lua.execute('''
@@ -171,6 +191,90 @@ class FontRefusal(unittest.TestCase):
             Frame()
             assert(type(region.fontObject) == "table" and region.font.size == 14 and not Updating())
         ''')
+
+    def test_conditional_access_waits_without_blocking_other_repairs_then_recovers(self):
+        self.lua.execute('''
+            local Text = addon.LibOrbitUI.Text
+            local restricted, ordinary = NewRegion(), NewRegion()
+            Text.ApplyFont(restricted, ORBIT_FONT, 12.6, "OUTLINE")
+            Text.ApplyFont(ordinary, ORBIT_FONT, 9.02, "OUTLINE")
+            restricted.restricted, mock.aurasSecret, mock.ready = true, true, true
+            assert(not restricted:IsForbidden())
+            local nativeCalls = restricted.nativeCalls
+            Frame()
+            Frame()
+            assert(#mock.errors == 0 and restricted.nativeCalls == nativeCalls)
+            assert(ordinary.font.size == 9.02 and Updating())
+            local settledCalls = ordinary.nativeCalls
+            mock.aurasSecret = false
+            Frame()
+            assert(restricted.nativeCalls > nativeCalls and Updating())
+            Frame()
+            assert(restricted.font.size == 12.6 and ordinary.nativeCalls == settledCalls)
+            assert(not Updating() and #mock.errors == 0)
+        ''')
+
+    def test_forbidden_and_secret_access_expire_without_native_reads(self):
+        for access in ("forbidden", "secretAccess"):
+            with self.subTest(access=access):
+                self.lua.globals().ACCESS_KIND = access
+                self.lua.execute('''
+                    local region = NewRegion()
+                    addon.LibOrbitUI.Text.ApplyFont(region, ORBIT_FONT, 10, "")
+                    region[ACCESS_KIND] = true
+                    local nativeCalls = region.nativeCalls
+                    for _ = 1, 9 do Frame(1) end
+                    assert(Updating() and region.nativeCalls == nativeCalls and #mock.errors == 0)
+                    local checks = region.accessChecks
+                    Frame(1)
+                    assert(region.accessChecks == checks and region.nativeCalls == nativeCalls)
+                    assert(not Updating() and #mock.errors == 0)
+                ''')
+
+    def test_timeout_precedes_even_the_first_deferred_access_query(self):
+        self.lua.execute('''
+            local region = NewRegion()
+            addon.LibOrbitUI.Text.ApplyFont(region, ORBIT_FONT, 10, "")
+            region.forbidden = true
+            local nativeCalls = region.nativeCalls
+            Frame(11)
+            assert(region.nativeCalls == nativeCalls and region.accessChecks == 0)
+            assert(not Updating() and #mock.errors == 0)
+        ''')
+
+    def test_access_interruption_restarts_the_two_frame_settle_window(self):
+        self.lua.execute('''
+            local region = NewRegion()
+            addon.LibOrbitUI.Text.ApplyFont(region, ORBIT_FONT, 10, "")
+            mock.ready = true
+            Frame()
+            region.restricted, mock.aurasSecret = true, true
+            Frame()
+            mock.aurasSecret = false
+            Frame()
+            assert(Updating() and #mock.errors == 0)
+            Frame()
+            assert(not Updating())
+        ''')
+
+    def test_latest_request_does_not_extend_the_existing_timeout(self):
+        self.lua.execute('''
+            local region = NewRegion()
+            addon.LibOrbitUI.Text.ApplyFont(region, ORBIT_FONT, 10, "")
+            Frame(9)
+            addon.LibOrbitUI.Text.ApplyFont(region, ORBIT_FONT, 11, "")
+            local nativeCalls = region.nativeCalls
+            Frame(1)
+            assert(not Updating() and region.nativeCalls == nativeCalls and #mock.errors == 0)
+        ''')
+
+
+class RetailFontRefusal(FontRefusalCases, unittest.TestCase):
+    CLIENT_BUILD = "12.1.5.70448"
+
+
+class ForeverFontRefusal(FontRefusalCases, unittest.TestCase):
+    CLIENT_BUILD = "1.60.1.70205"
 
 
 if __name__ == "__main__":

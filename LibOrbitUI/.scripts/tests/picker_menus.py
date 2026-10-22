@@ -7,11 +7,33 @@ from lupa.lua51 import LuaRuntime
 
 ROOT = Path(__file__).resolve().parents[2] / "LibOrbitUI-1.0"
 BOOT = r'''
-state={allocations=0,writes=0,tooltips=0}
+state={allocations=0,writes=0,tooltips=0,combat=false,timers={},errors={}}
 function noop() end
 table.freeze=function(t) return t end
 state.frames={}
-function InCombatLockdown() return false end
+function InCombatLockdown() return state.combat end
+function geterrorhandler() return function(err) table.insert(state.errors,err) end end
+C_Timer={After=function(_,callback) table.insert(state.timers,callback) end}
+function hooksecurefunc(target,name,callback)
+    local original=target[name]
+    target[name]=function(...) original(...);callback(...) end
+end
+function Combat(value)
+    state.combat=value
+    for _,frame in ipairs(state.frames) do
+        local event=value and "PLAYER_REGEN_DISABLED" or "PLAYER_REGEN_ENABLED"
+        if frame.events[event] then frame:Fire("OnEvent",event) end
+    end
+end
+function Key(key)
+    for _,frame in ipairs(state.frames) do
+        if frame.keyboard and frame:IsVisible() then
+            frame:Fire("OnKeyDown",key)
+            return frame.propagate
+        end
+    end
+    return true
+end
 function GetCursorPosition() return 0,state.cursorY or 0 end
 function Mixin(target,source) for k,v in pairs(source) do target[k]=v end;return target end
 function Tick(n)
@@ -110,10 +132,30 @@ function Frame(parent,kind,template)
     end
     function f:CreateTexture() return Frame(self,"Texture") end
     function f:RegisterCallback(event,fn) self.events[event]=fn end
+    function f:SetPropagateKeyboardInput(value)
+        assert(not state.combat,"keyboard propagation in combat")
+        self.propagate=value
+    end
+    function f:EnableKeyboard(value)
+        assert(not state.combat,"keyboard enabling in combat")
+        self.keyboard=value
+    end
+    function f:SetPropagateMouseClicks(value)
+        assert(not state.combat,"mouse propagation in combat")
+        self.propagateMouseClicks=value
+    end
+    function f:SetFrameLevel(value) self.level=value end
+    function f:GetFrameLevel() return self.level or 1 end
+    function f:SetFrameStrata(value) self.strata=value end
+    function f:GetFrameStrata() return self.strata or "DIALOG" end
+    function f:Raise() self.level=self:GetFrameLevel()+1 end
+    function f:Lower() self.level=self:GetFrameLevel()-1 end
+    if template=="InsecureKeyboardInputPropagatorTemplate" then f.propagate=true end
+    if template=="InsecureMouseClicksPropagatorTemplate" then f.propagateMouseClicks=true end
     for _,key in ipairs({"SetAutoFocus","SetJustifyH","SetWordWrap","SetTextColor","SetVertexColor",
         "SetColorTexture","SetTexCoord","SetDrawLayer","SetAlpha","SetDesaturated",
-        "SetShadowOffset","SetShadowColor","SetFrameStrata","SetFrameLevel","SetClampedToScreen",
-        "SetClipsChildren","SetPropagateKeyboardInput","EnableMouseWheel","RegisterForDrag"}) do f[key]=noop end
+        "SetShadowOffset","SetShadowColor","SetClampedToScreen",
+        "SetClipsChildren","EnableMouseWheel","RegisterForDrag"}) do f[key]=noop end
     assert(kind~="DropdownButton", "Native dropdown ownership is forbidden")
     f:SetScript("OnShow",noop)
     return f
@@ -132,6 +174,8 @@ class PickerMenuTests(unittest.TestCase):
     def setUp(self):
         self.lua = LuaRuntime(unpack_returned_tuples=True)
         self.lua.execute(BOOT)
+        for file in ("Core/Callbacks.lua", "Core/EscapeClose.lua"):
+            self.lua.execute((ROOT / file).read_text(encoding="utf-8"), "Addon", self.lua.globals().addon)
         for file in ("Widgets/ScrollBar.lua", "Widgets/ConfigValueSwatch.lua", "Pickers/ConfigPickerControl.lua", "Pickers/MediaMenu.lua",
                      "Widgets/ConfigDropdown.lua", "Pickers/ConfigFontPicker.lua", "Pickers/ConfigTexturePicker.lua"):
             self.lua.execute((ROOT / "Config" / file).read_text(encoding="utf-8"), "Addon", self.lua.globals().addon)
@@ -315,7 +359,21 @@ class PickerMenuTests(unittest.TestCase):
             frame.Control:Show();Open(frame);old();assert(state.writes==0)
             Tick(100);assert(menu.ScrollFrame:GetVerticalScroll()==0)
             menu:Fire("OnEvent","GLOBAL_MOUSE_DOWN");assert(not menu:IsShown())
-            Open(frame);menu:Fire("OnKeyDown","ESCAPE");assert(not menu:IsShown())
+            Open(frame);assert(not Key("ESCAPE") and not menu:IsShown())
+        ''')
+
+    def test_consumed_escape_and_first_open_in_combat_never_capture_gameplay_keys(self):
+        self.lua.execute(r'''
+            local frame=PreviewMenu(80);local menu=Open(frame)
+            assert(not Key("ESCAPE") and not menu:IsShown())
+            Combat(true)
+            Open(frame)
+            assert(menu:IsShown() and Key("W") and Key("1"))
+            local fresh=PreviewMenu(5);local freshMenu=Open(fresh)
+            assert(freshMenu:IsShown() and Key("W") and Key("1"))
+            Combat(false)
+            assert(not Key("ESCAPE") and not freshMenu:IsShown())
+            assert(#state.errors==0)
         ''')
 
     def test_scrollbar_drag_and_hidden_scroll_cancellation(self):

@@ -32,8 +32,10 @@ and owner-action rows; passive sources belong in hover help. Compact consumers u
   layout that registered the control. `ReleaseValueControls` closes and invalidates every singular/indexed color session
   and checkbox binding, clears hover handlers and hides the private tooltip only when the released accessory owns it.
 - Checkbox and numeric decorations remain usable when no optional color editor is installed.
-- Range sliders poll the drag button because native drag start/stop events can fire unreliably during a held
-  interaction.
+- Range sliders poll the drag button because native drag start/stop events can fire unreliably during a held interaction.
+  Equal dual endpoints select low/high from the first snapped cursor value to their left/right, regardless of which
+  overlapping thumb received the press; that endpoint then owns the drag. Stationary ticks emit no value preview.
+  Minimum-gap clamping and the one start/stop/commit callback sequence remain unchanged, including hide cancellation.
 - `ScrollBar:Attach` returns a bar with `SetScrollPosition` for immediate clamped seeks and `StopScrolling` for
   wheel/drag cancellation. Hiding the viewport cancels pending movement; range changes clamp the destination.
   Filtered/recycled content must seek through the bar to discard the previous target.

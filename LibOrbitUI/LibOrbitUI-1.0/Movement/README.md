@@ -16,6 +16,8 @@ context, and commits positions through supplied callbacks.
   spaces distinct across scales.
 - Native Edit Mode does not grant automatic Save/Revert participation; the consumer owns persistence and interruption
   semantics.
+- Combat-entry events deactivate immediately even before the lockdown query changes. A key arriving during lockdown
+  also refreshes the session before returning, so a consumed nudge cannot hold input until the next poll.
 - Releasing an overlay or cancelling its work does not restore protected/native ownership held by the product.
 
 ## References

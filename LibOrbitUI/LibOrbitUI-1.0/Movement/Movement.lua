@@ -189,6 +189,7 @@ end
 
 local function Nudge(movement, key)
     if InCombatLockdown() then
+        movement.session:Refresh("nudge")
         return
     end
     movement.overlay:SetPropagateKeyboardInput(true)
