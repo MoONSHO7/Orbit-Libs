@@ -11,7 +11,11 @@ local LAST_SLOT = 19
 
 local Equipped = {
     kind = "equipped",
-    events = { "PLAYER_EQUIPMENT_CHANGED", { event = "GET_ITEM_INFO_RECEIVED", items = true } },
+    events = {
+        "PLAYER_EQUIPMENT_CHANGED",
+        { event = "GET_ITEM_INFO_RECEIVED", items = true },
+        { event = "ITEM_DATA_LOAD_RESULT", items = true },
+    },
 }
 
 function Equipped:GetAvailability()

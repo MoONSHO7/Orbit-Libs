@@ -21,10 +21,14 @@ contains only the Lua, XML and license under `LibOrbitSearch-1.0/`, with a SHA25
 `.scripts/tests/search_engine.py` runs the runtime through Lupa's Lua 5.1 (`python -m pip install lupa`): registry,
 scoped index demand, rebuild notifications, matching, provider lifecycle, reentrancy, recents, typed ids and embedded
 upgrades. `client_contracts.py` covers missing native contracts, per-consumer event demand, source states/action
-retirement, all ten native sources, bounded item-load receipts and asynchronous lookup, including synchronous completion
+retirement, the original native sources, bounded item-load receipts and asynchronous lookup, including synchronous completion
 and demand cancellation. Item-source cases use `C_Item` with deprecated globals absent or throwing, including missing
-methods and recovery. Orbit's search bridge/host/presenter and row-validity suites cover consumer integration. Mocks do
-not certify Blizzard APIs, taint or rendering.
+methods and recovery. `search_source_parity.py`, `search_native_categories.py`, `search_talents_recipes.py` and
+`search_event_filters.py` cover ranked spells, pet commands, the added categories, native list restoration, item metadata
+and reentrant invalidation. Orbit's search bridge/host/presenter and row suites cover consumer integration. Mocks do not
+certify Blizzard APIs, taint or rendering. `search_engine_lifecycle_audit.py` and `search_async_lifecycle_audit.py`
+exercise long rebuild cycles, weak-reference collection, native request ownership and embedded upgrades;
+`search_native_audit.py` checks native event/trait edge cases.
 
 ## Gotchas
 - Consumers pin a full commit from a completed `LibOrbitSearch-*`
@@ -32,7 +36,7 @@ not certify Blizzard APIs, taint or rendering.
   Verify publication and runtime assets before updating consumers; release numbers are independent of `lib.API`.
 - All Rights Reserved, like LibOrbitUI; both this project and its runtime directory carry the notice.
 - The library owns no frames beyond event listeners, no saved variables and no localized strings; kind labels, item
-  keyword synonyms and recents storage come from each consumer.
+  keyword synonyms, learned/unlearned terms and recents storage come from each consumer.
 
 ## References
 [Runtime contract](LibOrbitSearch-1.0/README.md), [release workflow](../.github/workflows/README.md),

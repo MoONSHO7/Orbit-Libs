@@ -5,7 +5,6 @@ if not lib.__building then
 end
 
 local Native = lib._NativeContract
-local PROFESSION_SLOTS = 6
 local Professions = {
     kind = "professions",
     events = { "TRADE_SKILL_LIST_UPDATE", "SKILL_LINES_CHANGED", "SPELLS_CHANGED" },
@@ -22,10 +21,10 @@ function Professions:GetAvailability()
     return Native.Require(C_SpellBook, "GetSpellBookItemInfo")
 end
 
-function Professions:Build()
+local function BuildProfessions(...)
     local entries, seen = {}, {}
-    local indices = { GetProfessions() }
-    for position = 1, PROFESSION_SLOTS do
+    local indices = { ... }
+    for position = 1, select("#", ...) do
         local index = indices[position]
         if index then
             local name, icon, _, _, count, offset, skillLine = GetProfessionInfo(index)
@@ -49,6 +48,10 @@ function Professions:Build()
         end
     end
     return entries
+end
+
+function Professions:Build()
+    return BuildProfessions(GetProfessions())
 end
 
 lib:RegisterIndexSource("professions", Professions)

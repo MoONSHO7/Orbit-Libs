@@ -21,6 +21,12 @@
     <Script file="Sources\Pets.lua"/>
     <Script file="Sources\Heirlooms.lua"/>
     <Script file="Sources\Professions.lua"/>
+    <Script file="Sources\Skills.lua"/>
+    <Script file="Sources\Talents.lua"/>
+    <Script file="Sources\Recipes.lua"/>
+    <Script file="Sources\EquipmentSets.lua"/>
+    <Script file="Sources\Outfits.lua"/>
+    <Script file="Sources\Reputation.lua"/>
     <Script file="Sources\Currencies.lua"/>
     <Script file="Sources\Macros.lua"/>
     <Script file="Finalize.lua"/>

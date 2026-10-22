@@ -32,6 +32,10 @@ end
 function Native.BeginBuild(kind, source)
     Native.ClearItems(kind)
     local build = { kind = kind, source = source, revision = lib._kindRevisions[kind] or 0 }
+    local now = time()
+    if not source._itemRequestSweepAt or now >= source._itemRequestSweepAt + ITEM_REQUEST_TIMEOUT then
+        build.requestSweepAt = now
+    end
     lib._sourceItemBuilders[kind] = build
     return build
 end
@@ -44,6 +48,9 @@ function Native.EndBuild(build, published)
     if lib._sourceItemPending[kind] == build then
         if published then
             build.revision = lib._kindRevisions[kind] or 0
+            if build.requestSweepAt then
+                build.source._itemRequestSweepAt = build.requestSweepAt
+            end
         else
             Native.ClearItems(kind)
         end
@@ -63,12 +70,13 @@ function Native.RequestItem(source, itemID)
         return
     end
     local now = time()
+    local sweepAt = build.requestSweepAt or source._itemRequestSweepAt
     local requested = lib._sourceItemRequests:Get(itemID)
-    local request = not requested or now - requested >= ITEM_REQUEST_TIMEOUT
-    requested = request and now or requested
+    local request = build.requestSweepAt ~= nil and (not requested or now - requested >= ITEM_REQUEST_TIMEOUT)
+    requested = request and now or requested or sweepAt
     build.items = build.items or lib._BoundedCache.Create(ITEM_REQUEST_CAPACITY)
     build.items:Set(itemID, requested)
-    build.retryAt = math.min(build.retryAt or math.huge, requested + ITEM_REQUEST_TIMEOUT)
+    build.retryAt = sweepAt + ITEM_REQUEST_TIMEOUT
     lib._sourceItemPending[source.kind] = build
     if request then
         -- Publish the receipt first: native item completion can invalidate this build synchronously.

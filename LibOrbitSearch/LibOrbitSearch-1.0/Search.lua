@@ -68,6 +68,7 @@ end
 
 function SearchMixin:Disable()
     self:SetOpen(false)
+    self._master, self._masterRevision = nil, nil
     if not lib._enabledSearches[self] then
         return
     end

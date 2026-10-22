@@ -13,6 +13,7 @@ local SPELL_ID_TYPE = "spell"
 local ITEM_ID_TYPE = "item"
 local REQUEST_TIMEOUT = 30
 local WAKE_EVENTS = { "ADDON_LOADED", "PLAYER_ENTERING_WORLD" }
+local ITEM_EVENTS = { "ITEM_DATA_LOAD_RESULT", "GET_ITEM_INFO_RECEIVED" }
 local Native = lib._NativeContract
 
 local Create = lib._BoundedCache.Create
@@ -41,7 +42,9 @@ function Lookup.IsAvailable(idType)
             "GetItemQualityByID",
             "IsItemDataCachedByID",
             "RequestLoadItemDataByID"
-        ) == "ready" and Native.IsEventValid("GET_ITEM_INFO_RECEIVED")
+        ) == "ready" and (Native.IsEventValid("ITEM_DATA_LOAD_RESULT") or Native.IsEventValid(
+            "GET_ITEM_INFO_RECEIVED"
+        ))
     end
     return false
 end
@@ -84,7 +87,11 @@ function Lookup.RefreshEvents()
         caches.spellPending = Create(PENDING_SIZE)
     end
     if item and Lookup.IsAvailable(ITEM_ID_TYPE) then
-        frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+        for _, event in ipairs(ITEM_EVENTS) do
+            if Native.IsEventValid(event) then
+                frame:RegisterEvent(event)
+            end
+        end
     else
         caches.itemPending = Create(PENDING_SIZE)
     end

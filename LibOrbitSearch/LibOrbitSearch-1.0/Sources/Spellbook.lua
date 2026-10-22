@@ -12,8 +12,12 @@ local Spellbook = {
         "SPELLS_CHANGED",
         { event = "PLAYER_SPECIALIZATION_CHANGED", unit = "player" },
         { event = "UNIT_PET", unit = "player" },
+        "PET_BAR_UPDATE",
+        "PET_UI_UPDATE",
+        "UPDATE_VEHICLE_ACTIONBAR",
         "SKILL_LINES_CHANGED",
         "LEARNED_SPELL_IN_TAB",
+        "SPELL_TEXT_UPDATE",
     },
 }
 
@@ -34,18 +38,65 @@ function Spellbook:GetAvailability()
     return Native.Require(C_SpellBook, "GetNumSpellBookSkillLines", "GetSpellBookSkillLineInfo", "GetSpellBookItemInfo")
 end
 
-local function AppendSpellEntry(entries, name, spellID, passive)
+local function AppendSpellEntry(entries, name, spellID, passive, subName)
     if not name or not spellID then
         return
     end
+    local hasSubName = subName and subName ~= ""
     entries[#entries + 1] = {
         kind = "spellbook",
         id = spellID,
-        name = name,
-        lowerName = lib.Fold(name),
+        spellID = spellID,
+        name = hasSubName and name .. " (" .. subName .. ")" or name,
+        lowerName = lib.Fold(hasSubName and name .. " " .. subName or name),
+        subName = subName,
         icon = C_Spell.GetSpellTexture(spellID),
         passive = passive or false,
         secure = { type = "spell", spell = spellID },
+    }
+end
+
+local function OpenPetSpellbook()
+    if
+        PlayerSpellsUtil
+        and PlayerSpellsUtil.OpenToSpellBookTabAtCategory
+        and PlayerSpellsUtil.SpellBookCategories
+        and PlayerSpellsUtil.SpellBookCategories.Pet
+    then
+        PlayerSpellsUtil:OpenToSpellBookTabAtCategory(PlayerSpellsUtil.SpellBookCategories.Pet)
+    end
+end
+
+local function GetPetBarSlot(actionID)
+    if not C_ActionBar or not C_ActionBar.GetPetActionPetBarIndices or not CastPetAction then
+        return nil
+    end
+    local slots
+    -- Forever's default also searches gamepad possess slots; secure pet actions use the ordinary pet bar.
+    if Enum.ActionBarSet and Enum.ActionBarSet.Mkb then
+        slots = C_ActionBar.GetPetActionPetBarIndices(actionID, Enum.ActionBarSet.Mkb)
+    else
+        slots = C_ActionBar.GetPetActionPetBarIndices(actionID)
+    end
+    return slots and slots[1]
+end
+
+local function AppendPetAction(entries, info, slot)
+    if not info.actionID then
+        return
+    end
+    local actionSlot = GetPetBarSlot(info.actionID)
+    entries[#entries + 1] = {
+        kind = "spellbook",
+        id = "petaction:" .. info.actionID,
+        petActionID = info.actionID,
+        spellBookSlot = slot,
+        spellBookBank = Enum.SpellBookSpellBank.Pet,
+        name = info.name,
+        lowerName = lib.Fold(info.name),
+        icon = info.iconID,
+        secure = actionSlot and { type = "pet", action = actionSlot } or nil,
+        onClick = not actionSlot and OpenPetSpellbook or nil,
     }
 end
 
@@ -59,8 +110,12 @@ local function AppendPetSpells(entries)
     end
     for slot = 1, numPetSpells do
         local info = C_SpellBook.GetSpellBookItemInfo(slot, Enum.SpellBookSpellBank.Pet)
-        if info and info.name and info.itemType == Enum.SpellBookItemType.Spell and info.spellID then
-            AppendSpellEntry(entries, info.name, info.spellID, info.isPassive)
+        if info and info.name then
+            if info.itemType == Enum.SpellBookItemType.Spell and info.spellID then
+                AppendSpellEntry(entries, info.name, info.spellID, info.isPassive, info.subName)
+            elseif info.itemType == Enum.SpellBookItemType.PetAction then
+                AppendPetAction(entries, info, slot)
+            end
         end
     end
 end
@@ -84,7 +139,7 @@ function Spellbook:Build()
                 -- isOffSpec: individual entries within a visible line that belong to a non-active spec.
                 if info and info.name and not info.isOffSpec then
                     if info.itemType == Enum.SpellBookItemType.Spell and info.spellID then
-                        AppendSpellEntry(entries, info.name, info.spellID, info.isPassive)
+                        AppendSpellEntry(entries, info.name, info.spellID, info.isPassive, info.subName)
                     elseif
                         info.itemType == Enum.SpellBookItemType.Flyout
                         and info.actionID
@@ -96,7 +151,8 @@ function Spellbook:Build()
                             for slot = 1, numSlots do
                                 local slotSpellID, _, slotKnown, slotName = GetFlyoutSlotInfo(info.actionID, slot)
                                 if slotKnown then
-                                    AppendSpellEntry(entries, slotName, slotSpellID, false)
+                                    local subName = C_Spell.GetSpellSubtext and C_Spell.GetSpellSubtext(slotSpellID)
+                                    AppendSpellEntry(entries, slotName, slotSpellID, false, subName)
                                 end
                             end
                         end

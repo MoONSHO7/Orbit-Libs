@@ -26,6 +26,11 @@ lib._pendingRebuildKinds = lib._pendingRebuildKinds or {}
 lib._eventFrame = lib._eventFrame or CreateFrame("Frame")
 lib._sourceStates = lib._sourceStates or {}
 lib._entryOwners = lib._entryOwners or setmetatable({}, { __mode = "k" })
+for entry, owner in pairs(lib._entryOwners) do
+    if type(owner) == "table" then
+        lib._entryOwners[entry] = owner.source == lib._indexSources[entry.kind] and owner.revision or nil
+    end
+end
 lib._eventKinds = {}
 lib._wakeEvents = {}
 lib._includedKinds = {}
@@ -38,7 +43,12 @@ end
 
 local function AdvanceRevision(kind)
     lib._revision = lib._revision + 1
-    lib._kindRevisions[kind] = (lib._kindRevisions[kind] or 0) + 1
+    lib._kindRevisions[kind] = lib._revision
+    for search in pairs(lib._searches) do
+        if search._rowsByKind[kind] then
+            search._master, search._masterRevision = nil, nil
+        end
+    end
 end
 
 local function ProbeSource(kind, source)
@@ -60,8 +70,12 @@ end
 local function RetireKind(kind, state, reason, blocked)
     Native.ClearItems(kind)
     local previous = lib._sourceStates[kind]
-    if not previous or previous.state ~= state or previous.reason ~= reason or lib._entries[kind] ~= EMPTY then
+    local changed = not previous or previous.state ~= state or previous.reason ~= reason or lib._entries[kind] ~= EMPTY
+    if changed or lib._buildingKinds[kind] then
         AdvanceRevision(kind)
+    end
+    if not changed and previous.blocked == blocked then
+        return
     end
     lib._entries[kind] = EMPTY
     lib._buildCounts[kind] = 0
@@ -106,13 +120,28 @@ local function CancelItemDemand(kind, invalidate)
     Native.ClearItems(kind)
 end
 
+local function ShouldInvalidate(kind, event, unit, success)
+    local source = lib._indexSources[kind]
+    if not source then
+        return false
+    end
+    if not source.ShouldInvalidate then
+        return true
+    end
+    local ok, invalidate = pcall(source.ShouldInvalidate, source, event, unit, success)
+    if not ok then
+        lib:_Report(kind .. ".ShouldInvalidate: " .. tostring(invalidate))
+    end
+    return lib._indexSources[kind] == source and (not ok or invalidate ~= false)
+end
+
 lib._eventFrame:SetScript("OnEvent", function(_, event, unit, success)
     for kind, filter in pairs(lib._eventKinds[event] or EMPTY) do
         if filter == ITEM_DATA_FILTER then
             if Native.ItemDataReceived(kind, unit, success) then
                 lib:MarkDirty(kind)
             end
-        elseif filter == true or filter == unit then
+        elseif (filter == true or filter == unit) and ShouldInvalidate(kind, event, unit, success) then
             lib:MarkDirty(kind)
         end
     end
@@ -204,12 +233,11 @@ function lib:MarkDirty(kind)
     if not next(self._openSearches) then
         return
     end
-    -- Preserve the first revision even if a synchronous query rebuilds before the debounce fires.
+    -- Preserve the first revision even if a synchronous query rebuilds before the timer fires.
     self._pendingRebuildKinds[kind] = self._pendingRebuildKinds[kind] or revision
-    if self._rebuildTimer then
-        self._rebuildTimer:Cancel()
+    if not self._rebuildTimer then
+        self._rebuildTimer = C_Timer.NewTimer(REBUILD_DELAY, RebuildOpenSearches)
     end
-    self._rebuildTimer = C_Timer.NewTimer(REBUILD_DELAY, RebuildOpenSearches)
 end
 
 function lib:InvalidateAll()
@@ -226,8 +254,11 @@ function lib:_ForgetKind(kind)
     self._buildErrors[kind] = nil
     self._buildCounts[kind] = nil
     self._sourceStates[kind] = nil
-    self._revision = self._revision + 1
-    self._kindRevisions[kind] = (self._kindRevisions[kind] or 0) + 1
+    AdvanceRevision(kind)
+    self._pendingRebuildKinds[kind] = nil
+    if not self._indexSources[kind] then
+        self._kindRevisions[kind] = nil
+    end
 end
 
 -- [ BUILD ]------------------------------------------------------------------------------------------------------------
@@ -266,20 +297,57 @@ function lib:_BuildKind(kind)
     AdvanceRevision(kind)
     Native.EndBuild(itemBuild, true)
     for _, entry in ipairs(built) do
-        self._entryOwners[entry] = { source = source, revision = self._kindRevisions[kind] }
+        self._entryOwners[entry] = self._kindRevisions[kind]
     end
     return true
 end
 
+local function SourceExpired(kind)
+    local source = lib._indexSources[kind]
+    if not source or not source.IsExpired then
+        return false
+    end
+    local ok, expired = pcall(source.IsExpired, source)
+    if not ok then
+        lib:_Report(kind .. ".IsExpired: " .. tostring(expired))
+    end
+    return lib._indexSources[kind] == source and (not ok or expired == true)
+end
+
 function lib:_EnsureKindsBuilt(enabledKinds)
     local rebuilt = false
+    local readySources = {}
     for kind, enabled in pairs(enabledKinds) do
         if enabled and self._indexSources[kind] then
-            if self._built[kind] and not self._dirty[kind] and Native.ItemsExpired(kind) then
+            self:GetIndexSourceState(kind)
+            local state = self._sourceStates[kind]
+            if
+                self._built[kind]
+                and not self._dirty[kind]
+                and state
+                and not state.blocked
+                and (Native.ItemsExpired(kind) or SourceExpired(kind))
+            then
                 self:MarkDirty(kind)
             end
+            if
+                self._indexSources[kind]
+                and not self._buildingKinds[kind]
+                and (self._dirty[kind] or not self._built[kind])
+            then
+                rebuilt = self:_BuildKind(kind) or rebuilt
+            end
+            state = self._sourceStates[kind]
+            if state and state.state == "ready" and not self._dirty[kind] then
+                readySources[kind] = self._indexSources[kind]
+            end
+        end
+    end
+    -- Native enumeration can retire siblings already visited; reconcile those once, without retrying failed builds.
+    for kind, source in pairs(readySources) do
+        if self._indexSources[kind] == source and self._dirty[kind] and not self._buildingKinds[kind] then
             self:GetIndexSourceState(kind)
-            if not self._buildingKinds[kind] and (self._dirty[kind] or not self._built[kind]) then
+            if self._indexSources[kind] == source and self._dirty[kind] then
                 rebuilt = self:_BuildKind(kind) or rebuilt
             end
         end
@@ -288,10 +356,9 @@ function lib:_EnsureKindsBuilt(enabledKinds)
 end
 
 function lib:IsIndexEntryCurrent(entry)
-    local owner = self._entryOwners[entry]
-    return owner ~= nil
-        and owner.source == self._indexSources[entry.kind]
-        and owner.revision == self._kindRevisions[entry.kind]
+    local revision = self._entryOwners[entry]
+    return revision ~= nil
+        and revision == self._kindRevisions[entry.kind]
         and not self._dirty[entry.kind]
         and self:GetIndexSourceState(entry.kind) == "ready"
 end

@@ -11,12 +11,26 @@ table.freeze(REQUIRED_PROVIDER_FUNCTIONS)
 lib._indexSources = lib._indexSources or {}
 lib._providers = lib._providers or {}
 lib._providerKeyByKind = lib._providerKeyByKind or {}
+lib._sourceKeywordTerms = lib._sourceKeywordTerms or {}
 
 -- [ INDEX SOURCES ]----------------------------------------------------------------------------------------------------
+function lib:SetSourceKeywordTerms(kind, terms)
+    assert(type(kind) == "string" and type(terms) == "table", "LibOrbitSearch: source keywords need a kind and terms")
+    local copy = {}
+    for key, value in pairs(terms) do
+        assert(type(key) == "string" and type(value) == "string", "LibOrbitSearch: source keywords must be strings")
+        copy[key] = value
+    end
+    self._sourceKeywordTerms[kind] = copy
+    self:MarkDirty(kind)
+end
+
 function lib:RegisterIndexSource(kind, source)
     assert(type(kind) == "string", "LibOrbitSearch: index source kind must be a string")
     assert(type(source) == "table" and type(source.Build) == "function", "LibOrbitSearch: index source needs Build")
     assert(source.GetAvailability == nil or type(source.GetAvailability) == "function", "Invalid GetAvailability")
+    assert(source.ShouldInvalidate == nil or type(source.ShouldInvalidate) == "function", "Invalid ShouldInvalidate")
+    assert(source.IsExpired == nil or type(source.IsExpired) == "function", "Invalid IsExpired")
     assert(not self._providerKeyByKind[kind], "LibOrbitSearch: kind already belongs to a provider: " .. kind)
     self._indexSources[kind] = source
     self:_ForgetKind(kind)
@@ -29,13 +43,15 @@ function lib:UnregisterIndexSource(kind)
         return
     end
     self._indexSources[kind] = nil
+    self._sourceKeywordTerms[kind] = nil
     self:_ForgetKind(kind)
     self:_RefreshEventRegistration()
     self:_NotifySourcesChanged()
 end
 
-function lib:IsIndexSourceRegistered(kind)
-    return self._indexSources[kind] ~= nil
+function lib:IsIndexSourceRegistered(kind, source)
+    local registered = self._indexSources[kind]
+    return registered ~= nil and (source == nil or registered == source)
 end
 
 function lib:NotifyIndexSourceChanged(kind)

@@ -8,7 +8,12 @@ local Native = lib._NativeContract
 
 local Heirlooms = {
     kind = "heirlooms",
-    events = { "HEIRLOOMS_UPDATED", { event = "GET_ITEM_INFO_RECEIVED", items = true }, "BAG_UPDATE_DELAYED" },
+    events = {
+        "HEIRLOOMS_UPDATED",
+        { event = "GET_ITEM_INFO_RECEIVED", items = true },
+        { event = "ITEM_DATA_LOAD_RESULT", items = true },
+        "BAG_UPDATE_DELAYED",
+    },
 }
 
 function Heirlooms:GetAvailability()

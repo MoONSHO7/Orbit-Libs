@@ -9,7 +9,7 @@ An addon that needs search creates an instance, lists the kinds its search inclu
 Sources and providers register once per session and serve every instance that lists their kind.
 
 ## Implementation
-Load order is the XML manifest: `LibOrbitSearch-1.0.lua` claims LibStub revision 6 (API/provider/index contract 1),
+Load order is the XML manifest: `LibOrbitSearch-1.0.lua` claims LibStub revision 7 (API/provider/index contract 1),
 `NativeContract.lua` defines native function/event checks and item-load receipts, the engine files follow, `Sources/`
 registers the built-in index sources, and `Finalize.lua` adopts existing sessions and reconciles demand after the
 complete install.
@@ -17,13 +17,15 @@ complete install.
 | Registry (shared) | Does |
 |---|---|
 | `RegisterIndexSource(kind, source)` | `source:Build()` returns entries `{ kind, id, name, lowerName, icon, secure? onClick? passive? favorite? }`; optional `GetAvailability()` returns `ready`, `pending` or `unsupported` plus a reason; `events` hold names or `{ event, unit }` specs that dirty the kind (a unit spec only when the payload's first argument equals `unit`) |
+| `IsIndexSourceRegistered(kind, source?)` | tests registration; an optional source additionally tests current owner identity |
 | `GetIndexSourceState(kind)`, `NotifyIndexSourceChanged(kind)` | read state/reason or signal availability/data changes; a failed build is `failed`, a valid empty list is `ready` |
 | `RegisterProvider(key, provider)` | live kind: `contract = lib.PROVIDER_CONTRACT`, `kind`, `IsAvailable`, `BeginSession`, `EndSession`, `Query`, `Present`, `Activate`; returns `ok, reason` |
 | `NotifyProviderChanged(key)` | provider signals changed availability/data; active searches reconcile sessions and refresh without waiting for typing |
 | `MarkDirty(kind)`, `InvalidateAll()` | consumer signals that a kind's data changed |
 | `IsKindIncluded(kind)` | true while an enabled search lists and enables the kind |
 | `RegisterCallback(owner, "SourcesChanged" \| "InclusionChanged", fn)` | registry or inclusion changes |
-| `SetItemKeywordTerms({ ring, neck, cloak, reagent, warbound })`, `SetProfiler({ Begin, End })` | consumer-supplied localization and instrumentation |
+| `SetItemKeywordTerms({ ring, neck, cloak, reagent, warbound })`, `SetSourceKeywordTerms(kind, terms)` | consumer localization; source terms are copied and invalidate that kind; talents accepts `learned`, `unlearned` |
+| `SetProfiler({ Begin, End })` | consumer instrumentation |
 
 `lib:NewSearch(config)` takes `kinds` rows
 `{ kind, label?, aliases?, priority?, provider?, noToken?, keywordOnly?, idSearch? }` in listing order, among them the
@@ -39,20 +41,30 @@ shared source.
 side-effect-free source methods; omitted probes preserve external-source compatibility. A builder that discovers
 unavailable data may return `nil, "pending"|"unsupported", reason`; `{}` means a successful empty list. Missing/failed
 sources contribute no actionable entries. Dirty marks retire old entries immediately; open searches rebuild their
-current `GetIndexDemand()` union after a 0.5 s debounce. Provider-scoped queries skip native indexes, master assembly
+current `GetIndexDemand()` union through one 0.5 s timer from the first dirty mark; later marks do not postpone it.
+Provider-scoped queries skip native indexes, master assembly
 and recent boosts, and suppress that instance's deferred index demand; an unscoped query or Recents restores it. Close
 clears scope. Per-kind revisions preserve notifications when a synchronous query rebuilds first, and reject results
-invalidated/replaced during a build. Closed searches rebuild on their next query.
+invalidated/replaced during a build. Optional side-effect-free `source:IsExpired()` expires ready or pending data on a
+later unscoped query; it creates no timer. Closed searches rebuild on their next query. Native enumeration can invalidate an
+earlier sibling in the same query; one bounded second pass reconciles only same-source kinds previously ready in that
+query. It does not retry failed, pending or self-invalidated builds. Invalidating a warm rebuild advances its generation
+even when its previous rows were already retired. Retirement clears consumers' assembled masters immediately.
 
 Native events follow the union of enabled consumers' selected kinds and pass `C_EventUtils.IsEventValid`. Unsupported
 sources keep only valid `wakeEvents` (default ADDON_LOADED/PLAYER_ENTERING_WORLD); pending sources also keep their data
-events. Registry, enable/disable, settings and wake events rebuild demand; other data events only dirty their kinds
+events. Optional `source:ShouldInvalidate(event, unit, success)` may return false during an owned synchronous native
+enumeration transaction; it suppresses only that source. Errors report and invalidate; removed/replaced sources cannot
+be dirtied by the previous owner's callback. Item receipts remain separate.
+Registry, enable/disable, settings and wake events rebuild demand; other data events only dirty their kinds
 unless included kinds or ID demand drifted. Sources whose availability changes on a non-wake event call
 `NotifyIndexSourceChanged`. `IDLookup.lua` independently gates item/spell APIs and events, keeps valid
 addon-load/world-entry recovery events while selected, clears pending requests when demand ends, and retries lost
-requests on a later query after 30 seconds. Built-in item sources separately track at most 256 unresolved IDs per kind,
-share a bounded request deduplicator, and invalidate only for successful completions they await. Lost/failed requests
-retry on a later unscoped query after 30 seconds. Ordinary close retains subscriptions and warm indexes; losing the last
+requests on a later query after 30 seconds. Built-in item sources retain at most 256 receipts per kind and a shared
+256-ID request cache. Successful awaited ITEM_DATA_LOAD_RESULT or GET_ITEM_INFO_RECEIVED completions invalidate once.
+A completed source sweep admits new requests at most every 30 seconds; its size follows the missing native catalogue.
+Aborted sweeps do not consume that interval; newly missing IDs may wait for the next query-triggered sweep. Cross-source
+deduplication is best-effort after eviction. Ordinary close retains subscriptions and warm indexes; losing the last
 enabled demand or native availability retires built indexes before unobserved mutations can make them stale.
 
 `ProviderSessions.lua` owns provider acquisition/release independently of `Merge.lua`'s query/presentation/ranking.
@@ -95,6 +107,9 @@ failures). Spans are synchronous and nested; UI/host timing belongs to consumers
 - Item-load receipts precede native requests because cached requests may complete synchronously. Dirty marks, source
   replacement and demand cancellation detach receipts; Blizzard owns the native load. A rejected build cannot publish
   stale entries or reattach receipts.
+- Weak entry ownership stores globally unique numeric generations, never source objects: Lua 5.1 weak keys cannot
+  collect a value-to-source-to-entry cycle. Unregister clears per-kind generations, pending refreshes and localized terms;
+  re-registering the same source cannot revive old rows. Disable releases that search's assembled master.
 - Recents storage is consumer-owned and should be qualified by client family. `Load` returns the mutable record table:
   Record updates it in place. Keep unclassified history dormant; currency list indices cannot be migrated to currency
   IDs without the original mapping. No saved client policy or UI dependency belongs in this shared library.

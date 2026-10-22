@@ -7,7 +7,11 @@ local Native = lib._NativeContract
 
 local Toys = {
     kind = "toys",
-    events = { "TOYS_UPDATED", { event = "GET_ITEM_INFO_RECEIVED", items = true } },
+    events = {
+        "TOYS_UPDATED",
+        { event = "GET_ITEM_INFO_RECEIVED", items = true },
+        { event = "ITEM_DATA_LOAD_RESULT", items = true },
+    },
 }
 
 function Toys:GetAvailability()

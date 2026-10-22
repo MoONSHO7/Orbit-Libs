@@ -604,12 +604,12 @@ CASES = {
         Run("alpha")
         assert(mock.builds.pets == 1, "disabled kinds wait for re-enable")
     """,
-    "open searches debounce rebuilds and hear the update": r"""
+    "open searches coalesce rebuilds and hear the update": r"""
         Run("x")
         search:SetOpen(true)
         FireEvent("EVENT_TOYS")
         FireEvent("EVENT_TOYS")
-        assert(#mock.timers == 2 and mock.timers[1].cancelled)
+        assert(#mock.timers == 1 and not mock.timers[1].cancelled)
         FlushTimers()
         assert(mock.builds.toys == 2 and mock.indexUpdated == 1)
         search:Disable()

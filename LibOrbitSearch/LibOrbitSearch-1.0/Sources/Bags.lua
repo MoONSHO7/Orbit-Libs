@@ -14,6 +14,7 @@ local Bags = {
         "QUEST_ACCEPTED",
         { event = "UNIT_QUEST_LOG_CHANGED", unit = "player" },
         { event = "GET_ITEM_INFO_RECEIVED", items = true },
+        { event = "ITEM_DATA_LOAD_RESULT", items = true },
     },
 }
 
