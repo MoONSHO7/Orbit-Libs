@@ -231,19 +231,7 @@ function UI.Layout:Create(context, constants)
         layout:RegisterControlPool(typeName, poolName)
     end
     layout:RegisterControlPool("Slider", "sliderPool", function(control)
-        if control.Slider and control.Slider.UnregisterCallback then
-            control.Slider:UnregisterCallback("OnValueChanged", control)
-        end
-        control.OnOrbitChange = nil
-        control._callbackRegistered = nil
-        control._updateOnRelease = false
-        if control.Slider and control.Slider.Slider then
-            control.Slider.Slider:SetScript("OnMouseUp", nil)
-        end
-        if control._stepperTimer then
-            control._stepperTimer:Cancel()
-            control._stepperTimer = nil
-        end
+        UI.Config.ReleaseSlider(control)
     end)
     layout:RegisterControlPool("Dropdown", "dropdownPool", function(control)
         if control.Dropdown then

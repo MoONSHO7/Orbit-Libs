@@ -9,6 +9,11 @@ local LABEL_HEIGHT_PAD = 4
 local INLINE_SOURCE_GAP = 6
 local INLINE_SOURCE_MAX_SHARE = 0.5
 local INLINE_SOURCE_COLOR = { 0.72, 0.72, 0.72 }
+local DIVIDER_COLOR = { r = 0.3, g = 0.3, b = 0.3 }
+local DIVIDER_PIXELS = 1
+local DIVIDER_REFRESH_EVENTS = { "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED" }
+local SECTION_DIVIDER_OFFSET = 18
+local WEAK_KEYS = { __mode = "k" }
 
 local PICKER_ANCHOR_PADDING = 25
 
@@ -41,10 +46,54 @@ function Layout:BuildDialogChrome(frame, titleText)
     frame.title:SetText(titleText)
 end
 
+local function SnapDividerHeight(divider)
+    divider:SetHeight(divider.configPixel:Multiple(DIVIDER_PIXELS, divider:GetEffectiveScale()))
+    if divider._onPixelHeight then
+        divider._onPixelHeight(divider)
+    end
+end
+
+-- Hidden dividers re-snap when shown, so a refresh touches only visible ones.
+function Layout:RefreshDividerPixels()
+    if not self.pixelDividers then
+        return
+    end
+    for divider in pairs(self.pixelDividers) do
+        if divider:IsVisible() then
+            SnapDividerHeight(divider)
+        end
+    end
+end
+
+local function TrackPixelDivider(layout, divider)
+    if not layout.pixelDividers then
+        layout.pixelDividers = setmetatable({}, WEAK_KEYS)
+        local events = CreateFrame("Frame")
+        for _, event in ipairs(DIVIDER_REFRESH_EVENTS) do
+            events:RegisterEvent(event)
+        end
+        -- Pixel services observe the same events, so the refresh waits a frame for their screen scale.
+        events:SetScript("OnEvent", function()
+            C_Timer.After(0, function()
+                layout:RefreshDividerPixels()
+            end)
+        end)
+    end
+    layout.pixelDividers[divider] = true
+end
+
 -- A texture takes one linear gradient, so the end tapers are two mirrored halves meeting at the center
 function Layout:CreateTaperedDivider(parent, color, height)
+    color = color or DIVIDER_COLOR
     local divider = CreateFrame("Frame", nil, parent)
-    divider:SetHeight(height)
+    if height then
+        divider:SetHeight(height)
+    else
+        divider.configPixel = self.pixel
+        divider:SetScript("OnShow", SnapDividerHeight)
+        SnapDividerHeight(divider)
+        TrackPixelDivider(self, divider)
+    end
     local fadeIn = divider:CreateTexture(nil, "OVERLAY")
     fadeIn:SetColorTexture(1, 1, 1, 1)
     fadeIn:SetGradient(
@@ -65,6 +114,14 @@ function Layout:CreateTaperedDivider(parent, color, height)
     fadeOut:SetPoint("TOPRIGHT")
     fadeOut:SetPoint("BOTTOMRIGHT")
     fadeOut:SetPoint("LEFT", divider, "CENTER", 0, 0)
+    return divider
+end
+
+function Layout:CreateSectionDivider(parent, headerY)
+    local y = (headerY or 0) - SECTION_DIVIDER_OFFSET
+    local divider = self:CreateTaperedDivider(parent)
+    divider:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, y)
+    divider:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, y)
     return divider
 end
 

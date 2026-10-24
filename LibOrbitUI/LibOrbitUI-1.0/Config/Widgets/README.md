@@ -8,30 +8,40 @@ Provide reusable controls with consistent layout and callback ownership for ever
 
 ## Implementation
 The `Config` constructors create or reuse buttons, sliders/range sliders, checkboxes, text inputs and dropdowns.
+`ConfigSlider.lua` post-hooks the frame's hide and Blizzard's mouse/stepper scripts once per frame. API 1.16 options
+`onDragStart()`/`onDragStop(cancelled)` bracket an enabled press, which only its own mouse button ends; with
+`updateOnRelease` the value callback commits after an uncancelled stop or after a 0.1-second stepper debounce.
+`slider:SetCallbacks(callback, onDragStart, onDragStop)` rebinds, `Reinitialize(value, min?, max?, step?)` resets
+without callbacks, and `CancelPendingCommit` (also run on hide and pool release) ends a press as cancelled and drops
+pending commits.
 `ConfigDropdown.lua` supplies labels, option fonts and copied selection values to Pickers' flat Orbit menus; checks
-appear only for multiple selections. Mixed selections claim no selected option until an explicit edit; option fonts
-also appear on the closed control. `ConfigValueSwatch.lua` decorates
-value columns with checkbox, numeric and color interactions. Checkbox rows accept `valueColor` beside their optional
-value text; the label reserves the value column and pooled release expires the swatch. `singleColor=true` constrains
-the editor independently of `curve=true`, so single-colour settings can retain their existing pin representation.
-`ApplyValueColorSwatch` keeps the legacy singular field
-unless given its optional fourth `slot` argument; indexed swatches reuse independent picker sessions and render curve
-endpoints over a checkerboard through `ConfigPickerWidgets.lua`'s shared preview helper. `LayoutValueControls` anchors
-visible accessories at the value column's right edge and grows left, preserving caller order; its return value is the
-occupied width including a gap for the adjacent input. API 1.13's
-`ApplyValueCheckboxes(frame, configs)` returns visible controls in declared order and reuses indexed `ValueCheckboxes`;
-callers pass those controls to the same layout helper. Hidden and removed entries expire their callbacks. The singular
-`ApplyValueCheckbox` remains compatible, with an optional fourth slot argument. Checkboxes retain compact native art
-without cropping its transparent padding; each owns its tooltip and availability, combined with the parent row's gate.
-`ConfigReadout.lua` supplies read-only label/value rows
-and owner-action rows; passive sources belong in hover help. Compact consumers use those same constructors directly.
-`ScrollBar.lua` owns shared scrolling. The parent layout supplies values and reclaims controls through its pool registry.
+appear only for multiple selections. Mixed selections claim no selected option until an explicit edit; option fonts also
+appear on the closed control. `ConfigValueSwatch.lua` decorates value columns with checkbox, numeric and color
+interactions. Checkbox rows accept `valueColor` beside their optional value text; the label reserves the value column
+and pooled release expires the swatch. `singleColor=true` constrains the editor independently of `curve=true`, so
+single-colour settings can retain their existing pin representation. `ApplyValueColorSwatch` keeps the legacy singular
+field unless given its optional fourth `slot` argument; indexed swatches reuse independent picker sessions and render
+curve endpoints over a checkerboard through `ConfigPickerWidgets.lua`'s shared preview helper. `LayoutValueControls`
+anchors visible accessories at the value column's right edge and grows left, preserving caller order; its return value
+is the occupied width including a gap for the adjacent input. API 1.13's `ApplyValueCheckboxes(frame, configs)` returns
+visible controls in declared order and reuses indexed `ValueCheckboxes`; callers pass those controls to the same layout
+helper. Hidden and removed entries expire their callbacks. The singular `ApplyValueCheckbox` remains compatible, with an
+optional fourth slot argument. Checkboxes retain compact native art without cropping its transparent padding; each owns
+its tooltip and availability, combined with the parent row's gate. `ConfigReadout.lua` supplies read-only label/value
+rows and owner-action rows; passive sources belong in hover help. Compact consumers use those same constructors
+directly. `ScrollBar.lua` owns shared scrolling. The parent layout supplies values and reclaims controls through its
+pool registry.
 
 ## Gotchas
 - Recycled controls cannot retain writers or child interactions from their previous owner. Pool cleanup belongs to the
   layout that registered the control. `ReleaseValueControls` closes and invalidates every singular/indexed color session
   and checkbox binding, clears hover handlers and hides the private tooltip only when the released accessory owns it.
 - Checkbox and numeric decorations remain usable when no optional color editor is installed.
+- Slider hooks follow the client's `HookScript` rules: a consumer `SetScript` on the slider's `OnHide` or its inner
+  slider/stepper scripts discards them, so hook those scripts instead. Blizzard's inner `OnMouseUp` stays installed and
+  clears its interaction flags. Drag callbacks are lifecycle notices rather than guarded writers, so every start gets
+  its stop. Rebinding cancels the old binding's pending commits, including from a drag callback, so a pooled slider
+  never commits to its next owner. `Reinitialize` drops only the stepper debounce; a held press still commits.
 - Range sliders poll the drag button because native drag start/stop events can fire unreliably during a held interaction.
   Equal dual endpoints select low/high from the first snapped cursor value to their left/right, regardless of which
   overlapping thumb received the press; that endpoint then owns the drag. Stationary ticks emit no value preview.

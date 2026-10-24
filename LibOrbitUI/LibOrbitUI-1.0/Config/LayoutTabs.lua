@@ -6,8 +6,7 @@ local TAB_TEXT_PADDING = 30
 local TAB_ACTIVE_COLOR = { r = 1, g = 0.82, b = 0 }
 local TAB_INACTIVE_COLOR = { r = 0.6, g = 0.6, b = 0.6 }
 local TAB_HOVER_COLOR = { r = 1, g = 1, b = 1 }
-local TAB_DIVIDER_COLOR = { r = 0.3, g = 0.3, b = 0.3 }
-local TAB_DIVIDER_HEIGHT = 1
+local TAB_DIVIDER_SPACE = 1
 local TAB_BOTTOM_PADDING = 4
 local TAB_HIGHLIGHT_ATLAS = "housing-basic-panel-gradient-header-bg"
 local TAB_HIGHLIGHT_HEIGHT = 21
@@ -110,6 +109,13 @@ local function UpdateTabOverflow(scroll)
     SetOverflowShown(scroll.RightOverflow, range - current > TAB_OVERFLOW_EPSILON)
 end
 
+-- The scroll clips its child, so a divider pixel taller than the logical reserve widens the reserve.
+local function ReserveDividerSpace(scroll, dividerHeight)
+    local height = TAB_HEIGHT + math.max(TAB_DIVIDER_SPACE, dividerHeight)
+    scroll:SetHeight(height)
+    scroll.Content:SetHeight(height)
+end
+
 local function EnsureTabScroll(parent, layout)
     if parent._tabScroll then
         return parent._tabScroll
@@ -119,9 +125,9 @@ local function EnsureTabScroll(parent, layout)
     scroll.buttons = {}
     scroll:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
     scroll:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
-    scroll:SetHeight(TAB_HEIGHT + TAB_DIVIDER_HEIGHT)
     scroll.Content = CreateFrame("Frame", nil, scroll)
-    scroll.Content:SetSize(1, TAB_HEIGHT + TAB_DIVIDER_HEIGHT)
+    scroll.Content:SetWidth(1)
+    ReserveDividerSpace(scroll, 0)
     scroll:SetScrollChild(scroll.Content)
     scroll:EnableMouseWheel(true)
     scroll:SetScript("OnMouseWheel", ScrollTabs)
@@ -223,14 +229,24 @@ function Layout:CreateTabBar(parent, tabNames, activeTab, onTabSelected, omitDiv
 
     local divider
     if not omitDivider then
-        divider = scroll.divider or self:CreateTaperedDivider(scroll.Content, TAB_DIVIDER_COLOR, TAB_DIVIDER_HEIGHT)
-        scroll.divider = divider
+        divider = scroll.divider
+        if not divider then
+            divider = self:CreateTaperedDivider(scroll.Content)
+            divider._onPixelHeight = function(snapped)
+                ReserveDividerSpace(scroll, snapped:GetHeight())
+            end
+            scroll.divider = divider
+        end
         divider:SetFrameLevel(scroll.Content:GetFrameLevel())
         divider:SetPoint("TOPLEFT", scroll.Content, "TOPLEFT", 0, -TAB_HEIGHT)
         divider:SetPoint("TOPRIGHT", scroll.Content, "TOPRIGHT", 0, -TAB_HEIGHT)
         divider:Show()
-    elseif scroll.divider then
-        scroll.divider:Hide()
+        ReserveDividerSpace(scroll, divider:GetHeight())
+    else
+        if scroll.divider then
+            scroll.divider:Hide()
+        end
+        ReserveDividerSpace(scroll, 0)
     end
 
     return buttons, divider
@@ -252,7 +268,7 @@ function Layout:RegisterTabsWidgetType()
             frame.OrbitType = "Tabs"
         end
         frame:SetParent(container)
-        frame:SetHeight(TAB_HEIGHT + TAB_DIVIDER_HEIGHT + TAB_BOTTOM_PADDING)
+        frame:SetHeight(TAB_HEIGHT + TAB_DIVIDER_SPACE + TAB_BOTTOM_PADDING)
         if frame._tabSignature == signature and frame._tabButtons then
             for _, btn in ipairs(frame._tabButtons) do
                 btn.tabCallback = def.onTabSelected

@@ -18,6 +18,10 @@ dialogs supply view generations; Orbit supplies its captured editing context. `d
 Colour rows may explicitly set `inlineSource=true`; `LayoutControls` fits that source beside the label without wrapping
 or changing row height. Readouts resolve an effective value without a setting writer. The
 library owns presentation and input rejection; consumers own dependencies, source meaning and inheritance actions.
+API 1.16's `CreateTaperedDivider` defaults to the shared colour and one physical pixel, re-snapped on show, after
+scale/display events and by `RefreshDividerPixels()`; explicit colour or logical height arguments are kept.
+`CreateSectionDivider(parent, headerY)` spans `parent` 18 units below a header row. Panels and tab bars use these
+defaults; a tab scroll's clip follows its divider when that pixel exceeds one unit.
 `LayoutTabs` accepts optional `context.tabScrollHint` text/provider for the overflow glyphs. Their hover targets preserve
 wheel scrolling and inherit click propagation from Blizzard's template at creation, including during combat. The
 private hint closes on leave, overflow disappearance and pooled release.
@@ -37,6 +41,8 @@ them into windows and prompts.
 - Closed controls release callbacks and animations before reuse, including their availability/mixed-state decoration.
   Text inputs detach commit handlers before clearing focus; discarding a field never writes on focus loss. Panel release
   invalidates sizing work and clears every cached tab through the same control pools.
+- A direct `UIParent:SetScale`, including a scale below the `uiScale` CVar floor, fires no scale event; that caller runs
+  `RefreshDividerPixels()`. Event refreshes wait one frame so the Pixel service has the new screen scale.
 - Orbit supplies class-color policy, media catalogs/validation, checkerboard art, recent-color persistence and tours.
   Art/border/glow previews, group selection and profile caching remain host extensions.
 - The default color provider requires LibOrbitColorPicker revision 10's `GetCheckerboardTexture` and session-returning

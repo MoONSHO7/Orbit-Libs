@@ -30,10 +30,10 @@ visibility without sharing product state. API 1.8 adds consumer-local `DialogLif
 guarded schema callbacks and complete panel release. API 1.9 adds `EscapeClose`, keeping addon-owned windows out of
 Blizzard's shared `UISpecialFrames` scan. API 1.10 adds private Orbit-style tooltips and embedding-owned mouse glyphs.
 API 1.11 adds availability/input guards, disabled reasons, mixed values, effective readouts and scope/source metadata.
-API 1.12 adds ordered inline color swatches to texture pickers, including guarded writes and curve previews.
-API 1.13 adds ordered inline checkbox groups with per-entry availability, guarded writes and pooled binding expiry.
-API 1.14 adds checkbox value-column swatches and single-colour editors that preserve curve-shaped values.
+APIs 1.12-1.14 add ordered texture-picker swatches with curve previews, ordered checkbox groups with per-entry guards
+and pooled expiry, and checkbox value-column swatches whose single-colour editors preserve curve-shaped values.
 API 1.15 adds consumer-local font labels and an optional leading font choice without changing stored catalog names.
+API 1.16 adds slider drag callbacks, silent reinitialization and commit cancellation, plus one-pixel divider defaults.
 `Config.CreateDialog` installs the lifecycle and Escape owners; custom shells opt into each explicitly.
 `registerWidgets(layout)` remains the consumer-owned control hook.
 

@@ -71,6 +71,18 @@ stationary ticks, minimum gaps, release/hide and reuse at multiple scales. Both 
 native boundary: Retail `b9be937` (12.1.5.70448) and Forever `e3ecc27` (1.60.1.70205) agree on generated Input APIs,
 loaded `InputUtil` scale conversion and `HybridScrollFrame` mouse-button polling. Native hit delivery still needs WoW.
 
+`python .scripts/tests/slider_lifecycle.py` runs the shipped slider and layout pool against a template double that keeps
+Blizzard's own mouse/stepper scripts. It covers drag stop before release commit, disabled input, per-button press
+ownership, ancestor hide, public cancellation, silent value-only reinitialization, rebinding mid-press or from drag
+callbacks, stop-handler cancellation and pooled release/reuse without stale callbacks or stacked hooks. The loaded
+MinimalSlider and EditMode slider templates match on Retail `b9be937` (12.1.5.70448) and Forever `e3ecc27`
+(1.60.1.70205).
+
+`python .scripts/tests/section_dividers.py` loads the real Pixel service with the divider, tab and panel owners at three
+screen heights and four frame scales. Default dividers stay one physical pixel in the shared colour after reparenting,
+public refreshes and deferred display events; explicit arguments keep their logical height, section offsets hold, and
+tab scrolls reserve the pixel they clip while omitted dividers reserve nothing.
+
 `python .scripts/tests/tooltips.py` checks private and borrowed tooltip ownership, secret geometry, pixel borders,
 consumer-local asset paths, localized mouse hints and byte-identical relocation of the original mouse TGAs.
 

@@ -1,5 +1,11 @@
 # Unreleased
 
+- API 1.16 gives sliders drag start/stop callbacks, silent reinitialization and cancellation of pending commits. A
+  hidden, released or rebound slider no longer commits a drag or stepper edit later, and releasing a disabled slider
+  or a different mouse button no longer commits.
+- API 1.16 dividers default to the shared colour and one physical pixel, re-snapped when shown, on UI-scale or display
+  changes and through `RefreshDividerPixels`; `CreateSectionDivider` places one below a section header.
+
 - Equal range-slider endpoints can separate in either drag direction, including 0/0 and 100/100, without changing
   minimum gaps or callback ownership.
 - Escape handling uses an isolated input frame that hides during combat, preventing first-use and interrupted-Escape

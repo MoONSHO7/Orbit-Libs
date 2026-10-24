@@ -1,7 +1,5 @@
 local _, addon = ...
 local UI = addon.LibOrbitUI
-local DIVIDER_COLOR = { r = 0.3, g = 0.3, b = 0.3 }
-local DIVIDER_HEIGHT = 1
 local PLACEHOLDER_HEIGHT = 1
 local DISABLED_ALPHA = 0.55
 local DISABLED_LEVEL_OFFSET = 10
@@ -51,7 +49,7 @@ function PanelMixin:CreateFrame(dialog)
     header:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
     header:SetPoint("TOPRIGHT", panel, "TOPRIGHT", 0, 0)
     panel.Header = header
-    panel.HeaderDivider = layout:CreateTaperedDivider(header, DIVIDER_COLOR, DIVIDER_HEIGHT)
+    panel.HeaderDivider = layout:CreateTaperedDivider(header)
     panel.HeaderDivider:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, layout.TabBottomPadding)
     panel.HeaderDivider:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, layout.TabBottomPadding)
     panel.ScrollFrame = CreateFrame("ScrollFrame", nil, panel)
@@ -74,7 +72,7 @@ function PanelMixin:CreateFrame(dialog)
     panel.Footer:SetHeight(footerHeight)
     panel.Footer:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 0, 0)
     panel.Footer:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", 0, 0)
-    local divider = layout:CreateTaperedDivider(panel.Footer, DIVIDER_COLOR, DIVIDER_HEIGHT)
+    local divider = layout:CreateTaperedDivider(panel.Footer)
     divider:SetPoint("TOPLEFT", panel.Footer, "TOPLEFT", 0, 0)
     divider:SetPoint("TOPRIGHT", panel.Footer, "TOPRIGHT", 0, 0)
     return panel
