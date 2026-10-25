@@ -16,8 +16,8 @@ without callbacks, and `CancelPendingCommit` (also run on hide and pool release)
 pending commits.
 `ConfigDropdown.lua` supplies labels, option fonts and copied selection values to Pickers' flat Orbit menus; checks
 appear only for multiple selections. Mixed selections claim no selected option until an explicit edit; option fonts also
-appear on the closed control. API 1.17's optional ninth argument (schema `valueWarning`) installs Pickers' value badge,
-evaluated on every preview update for single-choice values only; multiple selections pass no warning.
+appear on the closed control. API 1.17's optional ninth argument (schema `valueWarning`) installs Pickers' value-column
+badge, evaluated on every preview update for single-choice values only; multiple selections pass no warning.
 `ConfigValueSwatch.lua` decorates value columns with checkbox, numeric and color
 interactions. Checkbox rows accept `valueColor` beside their optional value text; the label reserves the value column
 and pooled release expires the swatch. `singleColor=true` constrains the editor independently of `curve=true`, so

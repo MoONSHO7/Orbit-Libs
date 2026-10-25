@@ -88,9 +88,10 @@ consumer-local asset paths, localized mouse hints and byte-identical relocation 
 
 `python .scripts/tests/value_warning.py` renders shipped dropdown schemas through the panel, pool and picker-control
 owners with the real Pixel service, in both client fixtures at three frame scales. It covers value-driven badge
-visibility, the title/wrapped-body tooltip and owner-scoped cleanup, click fall-through to the menu, value-text inset
-and snapped size, mixed, multi-select and disabled states without rerunning the predicate, combat creation, pooled reuse
-without stale callbacks and allocation-free refreshes. Retail `15881d5` (12.1.5.70575) and Forever `e3ecc27`
+visibility, snapped value-column placement right of an unchanged box, grouping beside a value checkbox or swatch that
+never moves, the title/wrapped-body tooltip and owner-scoped cleanup, clicks that never reach the menu, mixed,
+multi-select and disabled states without rerunning the predicate, combat creation, pooled reuse without stale callbacks
+and allocation-free refreshes. Retail `15881d5` (12.1.5.70575) and Forever `e3ecc27`
 (1.60.1.70205) share the generated motion/click setters, load `transmog-icon-warning-small` and use the same motion-only
 `EncounterTimelineEventFrameTemplate` tooltip pattern; native hit testing and art still require WoW.
 

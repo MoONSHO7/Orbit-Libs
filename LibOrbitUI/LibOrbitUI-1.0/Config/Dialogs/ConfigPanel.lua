@@ -370,7 +370,7 @@ function PanelMixin:RenderControl(container, definition, getValue, onChange, onC
             control.Value:SetText(definition.mixedText)
         elseif definition.type == "dropdown" then
             control.Control.Text:SetText(definition.mixedText)
-            UI.Config.RefreshPickerValueWarning(control.Control)
+            UI.Config.RefreshPickerValueWarning(control)
         elseif definition.type == "checkbox" then
             control:SetChecked(false)
             if not control.configMixedMark then

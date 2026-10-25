@@ -123,7 +123,7 @@ function Config:CreateDropdown(
 
     local function UpdatePreview()
         local warning = not frame.dropMultiSelect and frame.dropValueWarning or nil
-        Config.ApplyPickerValueWarning(Layout, frame.Control, warning, frame.dropValue)
+        Config.ApplyPickerValueWarning(Layout, frame, warning, frame.dropValue)
         frame.Control.Text:SetFontObject(Constants.UI.LabelFont)
         if frame.configMixed then
             frame.Control.Text:SetText(frame.configMixedText)
@@ -242,8 +242,6 @@ function Config:CreateDropdown(
         )
     end
 
-    UpdatePreview()
-
     function frame:RefreshOptions(newOptions, newValue, newCallback, newMultiSelectCfg)
         frame.dropOptions = newOptions
         frame.dropMultiSelect = newMultiSelectCfg
@@ -273,6 +271,7 @@ function Config:CreateDropdown(
             frame.ValueColorSwatch:Hide()
         end
     end
+    UpdatePreview()
 
     frame:SetSize(C.Widget.Width, C.Widget.Height)
     return frame

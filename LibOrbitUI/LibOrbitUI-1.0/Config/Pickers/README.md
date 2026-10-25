@@ -7,10 +7,10 @@ Color, gradient, font and texture selection controls.
 Share previews and selection interactions without embedding consumer catalog, theme or persistence policy.
 
 ## Implementation
-`ConfigPickerControl.lua` owns Orbit's flat dark control, compact arrow and open/hover border. API 1.17's
-`Config.ApplyPickerValueWarning(layout, control, warning, value)` adds its value badge: one lazily created frame per
-pooled control, left of the arrow, with the value text ending before it only while shown. It caches `visible(value)`;
-`Config.RefreshPickerValueWarning(control)` reapplies that result after enable or mixed changes.
+`ConfigPickerControl.lua` owns Orbit's flat dark control, compact arrow and open/hover border, plus API 1.17's
+`Config.ApplyPickerValueWarning(layout, frame, warning, value)`: one lazily created swatch-sized badge per pooled row,
+placed by `LayoutValueControls` ahead of the row's checkbox or swatch. It caches `visible(value)`;
+`Config.RefreshPickerValueWarning(frame)` reapplies that result after enable or mixed changes.
 `MediaMenu.lua` owns the matching flat popup, catalog filtering, selection, positioning and dismissal. Its fixed search
 header sits above a virtualized scroll child; the shared `ScrollBar.lua` owns wheel and drag movement. Consumers retain
 the closed control's text, texture and animated swatch and supply pooled menu previews. Color/curve constructors use the
@@ -27,10 +27,11 @@ compound rows and after changing accessory visibility.
 - API 1.15 accepts optional `media.fontLabel(name)` for closed font previews, menu labels and search; selection and
   callbacks retain the catalog name. Optional `media.firstFont` places that name before the ordinary font groups when
   it matches the search. Consumers without these fields retain raw names and the existing ordering.
-- The value badge only takes mouse motion: clicks fall through to the picker, while hover shows the private tooltip
-  (title, then wrapped text, `ANCHOR_RIGHT`) and keeps the picker's hover border. It hides while the picker is disabled
-  or its row is mixed, and that tooltip closes only when the badge owns it. `Layout:ReleaseControl` clears the badge
-  before re-enabling or unparenting, so reuse cannot show it or snap its inset at another scale.
+- The value badge sits outside the box, so the box keeps its pre-1.17 width and text inset. Leading the accessory group
+  puts a lone badge at the column's right edge and never moves a checkbox or swatch when it toggles; rows without a
+  warning keep those accessories' own anchors. It is motion-only (clicks open nothing), and hover shows the private
+  tooltip: title, then wrapped text, `ANCHOR_RIGHT`. It hides while disabled or mixed, closes only a tooltip it owns
+  and is cleared by `Layout:ReleaseControl` before re-enabling, so reuse cannot show it.
 - The badge uses `transmog-icon-warning-small`, which `Blizzard_TransmogTemplates` loads on Retail 12.1.5.70575 and
   Forever 1.60.1.70205. Do not substitute art without an observed Forever failure; native rendering is unverified.
 - Missing color editing support leaves previews visible with editing disabled; provider/session ownership prevents stale

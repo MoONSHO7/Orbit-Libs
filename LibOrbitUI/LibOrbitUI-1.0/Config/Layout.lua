@@ -36,10 +36,9 @@ function Layout:ReleaseControl(control)
     if control.configMixedMark then
         control.configMixedMark:Hide()
     end
-    local picker = control.Control
-    -- Clear before re-enabling or unparenting, so neither shows the badge nor re-snaps its inset at another scale.
-    if picker and picker.ValueWarning then
-        UI.Config.ApplyPickerValueWarning(self, picker, nil)
+    -- Clear before re-enabling, whose refresh would otherwise show the warning on its way into the pool.
+    if control.ValueWarning then
+        UI.Config.ApplyPickerValueWarning(self, control, nil)
     end
     if control._disabledOverlay then
         control._disabledOverlay:SetScript("OnEnter", nil)

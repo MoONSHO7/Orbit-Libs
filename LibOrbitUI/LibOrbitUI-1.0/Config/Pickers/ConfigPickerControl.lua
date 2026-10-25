@@ -11,7 +11,6 @@ local ARROW_SIZE, ARROW_INSET = 10, 8
 local ARROW_DOWN, ARROW_UP = -math.pi / 2, math.pi / 2
 local TEXT_GAP = 3
 local WARNING_ATLAS = "transmog-icon-warning-small"
-local WARNING_SIZE, WARNING_GAP = 14, 4
 
 local function RefreshState(control)
     control.Arrow:SetRotation(control.isOpen and ARROW_UP or ARROW_DOWN)
@@ -27,19 +26,9 @@ local function RefreshState(control)
     end
 end
 
-local function EnterControl(control)
-    control.hovered = true
-    RefreshState(control)
-end
-
-local function LeaveControl(control)
-    control.hovered = false
-    RefreshState(control)
-end
-
 local function RefreshEnabled(control)
     RefreshState(control)
-    Config.RefreshPickerValueWarning(control)
+    Config.RefreshPickerValueWarning(control:GetParent())
 end
 
 -- [ VALUE WARNING ]----------------------------------------------------------------------------------------------------
@@ -49,11 +38,8 @@ local function HideWarningTooltip(badge)
     end
 end
 
--- The badge takes the picker's motion focus, so it carries the picker's hover border too.
 local function ShowWarningTooltip(badge)
-    local control = badge:GetParent()
-    EnterControl(control)
-    local warning = control.valueWarning
+    local warning = badge:GetParent().valueWarning
     local title = Config.ResolveText(warning.title)
     if not title or title == "" then
         return
@@ -68,27 +54,20 @@ local function ShowWarningTooltip(badge)
     tooltip:Show()
 end
 
-local function LeaveWarning(badge)
-    LeaveControl(badge:GetParent())
-    HideWarningTooltip(badge)
-end
-
-local function CreateWarningBadge(layout, control)
+local function CreateWarningBadge(layout, frame)
     local options = layout.configOptions
-    local badge = CreateFrame("Frame", nil, control)
-    -- Motion-only input shows the tooltip while clicks fall through to the picker beneath.
+    local badge = CreateFrame("Frame", nil, frame)
     badge:EnableMouseMotion(true)
     badge:SetMouseClickEnabled(false)
-    badge.configPixel, badge.configTooltip, badge.configTooltipHide =
-        options.pixel, options.tooltip, options.tooltipHide
+    badge.configLayout, badge.configTooltip, badge.configTooltipHide = layout, options.tooltip, options.tooltipHide
     badge.Icon = badge:CreateTexture(nil, "OVERLAY")
     badge.Icon:SetAtlas(WARNING_ATLAS)
     badge.Icon:SetAllPoints()
     badge:Hide()
     badge:SetScript("OnEnter", ShowWarningTooltip)
-    badge:SetScript("OnLeave", LeaveWarning)
+    badge:SetScript("OnLeave", HideWarningTooltip)
     badge:SetScript("OnHide", HideWarningTooltip)
-    control.ValueWarning = badge
+    frame.ValueWarning = badge
 end
 
 local function WarningApplies(warning, value)
@@ -99,37 +78,46 @@ local function WarningApplies(warning, value)
     return visible ~= false
 end
 
-function Config.RefreshPickerValueWarning(control)
-    local badge = control.ValueWarning
-    if not badge then
-        return
-    end
-    local shown = control.valueWarningWanted and control:IsEnabled() and not control:GetParent().configMixed
+local function UpdateWarningShown(frame)
+    local badge = frame.ValueWarning
+    local shown = frame.valueWarningWanted and frame.Control:IsEnabled() and not frame.configMixed
     if shown == badge:IsShown() then
-        return
+        return false
     end
-    local Pixel = badge.configPixel
     if shown then
-        badge:SetSize(Pixel:SnapSize(WARNING_SIZE, WARNING_SIZE, badge:GetEffectiveScale(), true))
-        Pixel:Point(badge, "RIGHT", control.Arrow, "LEFT", -WARNING_GAP, 0)
-        Pixel:Point(control.Text, "RIGHT", badge, "LEFT", -TEXT_GAP, 0)
-        badge:Show()
-    else
-        badge:Hide()
-        Pixel:Point(control.Text, "RIGHT", control.Arrow, "LEFT", -TEXT_GAP, 0)
+        local options = badge.configLayout.configOptions
+        local size = options.constants.Widget.ValueSwatchSize
+        badge:SetSize(options.pixel:SnapSize(size, size, badge:GetEffectiveScale(), true))
+    end
+    badge:SetShown(shown)
+    return shown
+end
+
+-- The warning leads the accessory group, so showing or hiding it never moves the checkbox or swatch beside it.
+local function LayoutValueColumn(frame)
+    local badge = frame.ValueWarning
+    badge.configLayout:LayoutValueControls(frame, badge, frame.ValueCheckbox, frame.ValueColorSwatch)
+end
+
+function Config.RefreshPickerValueWarning(frame)
+    if frame.ValueWarning and UpdateWarningShown(frame) then
+        LayoutValueColumn(frame)
     end
 end
 
-function Config.ApplyPickerValueWarning(layout, control, warning, value)
-    if not warning and not control.ValueWarning then
+function Config.ApplyPickerValueWarning(layout, frame, warning, value)
+    if not warning and not frame.ValueWarning then
         return
     end
-    if not control.ValueWarning then
-        CreateWarningBadge(layout, control)
+    if not frame.ValueWarning then
+        CreateWarningBadge(layout, frame)
     end
-    control.valueWarning = warning
-    control.valueWarningWanted = warning ~= nil and WarningApplies(warning, value)
-    Config.RefreshPickerValueWarning(control)
+    frame.valueWarning = warning
+    frame.valueWarningWanted = warning ~= nil and WarningApplies(warning, value)
+    UpdateWarningShown(frame)
+    if warning then
+        LayoutValueColumn(frame)
+    end
 end
 
 -- [ PICKER CONTROL ]---------------------------------------------------------------------------------------------------
@@ -160,8 +148,14 @@ function Config:CreatePickerControl(frame, opts)
             frame:ShowDropdown()
         end
     end)
-    control:SetScript("OnEnter", EnterControl)
-    control:SetScript("OnLeave", LeaveControl)
+    control:SetScript("OnEnter", function()
+        control.hovered = true
+        RefreshState(control)
+    end)
+    control:SetScript("OnLeave", function()
+        control.hovered = false
+        RefreshState(control)
+    end)
     control:SetScript("OnEnable", RefreshEnabled)
     control:SetScript("OnDisable", RefreshEnabled)
     control:SetScript("OnHide", function()
