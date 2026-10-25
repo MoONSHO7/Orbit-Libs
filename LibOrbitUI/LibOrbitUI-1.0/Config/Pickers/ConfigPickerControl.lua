@@ -10,6 +10,8 @@ local ARROW = "common-dropdown-icon-next"
 local ARROW_SIZE, ARROW_INSET = 10, 8
 local ARROW_DOWN, ARROW_UP = -math.pi / 2, math.pi / 2
 local TEXT_GAP = 3
+local WARNING_ATLAS = "transmog-icon-warning-small"
+local WARNING_SIZE, WARNING_GAP = 14, 4
 
 local function RefreshState(control)
     control.Arrow:SetRotation(control.isOpen and ARROW_UP or ARROW_DOWN)
@@ -25,6 +27,112 @@ local function RefreshState(control)
     end
 end
 
+local function EnterControl(control)
+    control.hovered = true
+    RefreshState(control)
+end
+
+local function LeaveControl(control)
+    control.hovered = false
+    RefreshState(control)
+end
+
+local function RefreshEnabled(control)
+    RefreshState(control)
+    Config.RefreshPickerValueWarning(control)
+end
+
+-- [ VALUE WARNING ]----------------------------------------------------------------------------------------------------
+local function HideWarningTooltip(badge)
+    if badge.configTooltip:IsOwned(badge) then
+        badge.configTooltipHide()
+    end
+end
+
+-- The badge takes the picker's motion focus, so it carries the picker's hover border too.
+local function ShowWarningTooltip(badge)
+    local control = badge:GetParent()
+    EnterControl(control)
+    local warning = control.valueWarning
+    local title = Config.ResolveText(warning.title)
+    if not title or title == "" then
+        return
+    end
+    local tooltip = badge.configTooltip
+    tooltip:SetOwner(badge, "ANCHOR_RIGHT")
+    tooltip:SetText(title, 1, 1, 1)
+    local text = Config.ResolveText(warning.text)
+    if text and text ~= "" then
+        tooltip:AddLine(text, nil, nil, nil, true)
+    end
+    tooltip:Show()
+end
+
+local function LeaveWarning(badge)
+    LeaveControl(badge:GetParent())
+    HideWarningTooltip(badge)
+end
+
+local function CreateWarningBadge(layout, control)
+    local options = layout.configOptions
+    local badge = CreateFrame("Frame", nil, control)
+    -- Motion-only input shows the tooltip while clicks fall through to the picker beneath.
+    badge:EnableMouseMotion(true)
+    badge:SetMouseClickEnabled(false)
+    badge.configPixel, badge.configTooltip, badge.configTooltipHide =
+        options.pixel, options.tooltip, options.tooltipHide
+    badge.Icon = badge:CreateTexture(nil, "OVERLAY")
+    badge.Icon:SetAtlas(WARNING_ATLAS)
+    badge.Icon:SetAllPoints()
+    badge:Hide()
+    badge:SetScript("OnEnter", ShowWarningTooltip)
+    badge:SetScript("OnLeave", LeaveWarning)
+    badge:SetScript("OnHide", HideWarningTooltip)
+    control.ValueWarning = badge
+end
+
+local function WarningApplies(warning, value)
+    local visible = warning.visible
+    if type(visible) == "function" then
+        return visible(value) and true or false
+    end
+    return visible ~= false
+end
+
+function Config.RefreshPickerValueWarning(control)
+    local badge = control.ValueWarning
+    if not badge then
+        return
+    end
+    local shown = control.valueWarningWanted and control:IsEnabled() and not control:GetParent().configMixed
+    if shown == badge:IsShown() then
+        return
+    end
+    local Pixel = badge.configPixel
+    if shown then
+        badge:SetSize(Pixel:SnapSize(WARNING_SIZE, WARNING_SIZE, badge:GetEffectiveScale(), true))
+        Pixel:Point(badge, "RIGHT", control.Arrow, "LEFT", -WARNING_GAP, 0)
+        Pixel:Point(control.Text, "RIGHT", badge, "LEFT", -TEXT_GAP, 0)
+        badge:Show()
+    else
+        badge:Hide()
+        Pixel:Point(control.Text, "RIGHT", control.Arrow, "LEFT", -TEXT_GAP, 0)
+    end
+end
+
+function Config.ApplyPickerValueWarning(layout, control, warning, value)
+    if not warning and not control.ValueWarning then
+        return
+    end
+    if not control.ValueWarning then
+        CreateWarningBadge(layout, control)
+    end
+    control.valueWarning = warning
+    control.valueWarningWanted = warning ~= nil and WarningApplies(warning, value)
+    Config.RefreshPickerValueWarning(control)
+end
+
+-- [ PICKER CONTROL ]---------------------------------------------------------------------------------------------------
 function Config:CreatePickerControl(frame, opts)
     local Pixel = self.configOptions.pixel
     local white = self.configOptions.constants.Texture.White
@@ -52,16 +160,10 @@ function Config:CreatePickerControl(frame, opts)
             frame:ShowDropdown()
         end
     end)
-    control:SetScript("OnEnter", function()
-        control.hovered = true
-        RefreshState(control)
-    end)
-    control:SetScript("OnLeave", function()
-        control.hovered = false
-        RefreshState(control)
-    end)
-    control:SetScript("OnEnable", RefreshState)
-    control:SetScript("OnDisable", RefreshState)
+    control:SetScript("OnEnter", EnterControl)
+    control:SetScript("OnLeave", LeaveControl)
+    control:SetScript("OnEnable", RefreshEnabled)
+    control:SetScript("OnDisable", RefreshEnabled)
     control:SetScript("OnHide", function()
         control.hovered = false
         if control.Popup then

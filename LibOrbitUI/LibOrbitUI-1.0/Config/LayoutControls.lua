@@ -452,7 +452,8 @@ function Layout:InitializeBaseWidgetTypes()
             callback,
             def.valueCheckbox,
             def.valueColor,
-            def.multiSelect
+            def.multiSelect,
+            def.valueWarning
         )
         self:AttachLabelTooltip(dropdown, def.label, def.tooltip)
         return dropdown

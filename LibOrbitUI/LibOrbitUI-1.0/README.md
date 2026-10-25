@@ -34,6 +34,7 @@ APIs 1.12-1.14 add ordered texture-picker swatches with curve previews, ordered 
 and pooled expiry, and checkbox value-column swatches whose single-colour editors preserve curve-shaped values.
 API 1.15 adds consumer-local font labels and an optional leading font choice without changing stored catalog names.
 API 1.16 adds slider drag callbacks, silent reinitialization and commit cancellation, plus one-pixel divider defaults.
+API 1.17 adds an optional value-warning badge inside dropdown value boxes, with a private hover tooltip.
 `Config.CreateDialog` installs the lifecycle and Escape owners; custom shells opt into each explicitly.
 `registerWidgets(layout)` remains the consumer-owned control hook.
 

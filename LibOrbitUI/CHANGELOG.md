@@ -1,5 +1,8 @@
 # Unreleased
 
+- API 1.17 dropdowns can show a small warning sign inside their value box, with a hover tooltip. Clicking the sign
+  still opens the menu; disabled, mixed and multiple-choice values never show it, and reused controls never keep it.
+
 - API 1.16 gives sliders drag start/stop callbacks, silent reinitialization and cancellation of pending commits. A
   hidden, released or rebound slider no longer commits a drag or stepper edit later, and releasing a disabled slider
   or a different mouse button no longer commits.

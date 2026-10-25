@@ -7,15 +7,18 @@ Color, gradient, font and texture selection controls.
 Share previews and selection interactions without embedding consumer catalog, theme or persistence policy.
 
 ## Implementation
-`ConfigPickerControl.lua` owns Orbit's flat dark control, compact arrow and open/hover border. `MediaMenu.lua` owns the
-matching flat popup, catalog filtering, selection, positioning and dismissal. Its fixed search header sits above a
-virtualized scroll child; the shared `ScrollBar.lua` owns wheel and drag movement. Consumers retain the closed control's
-text, texture and animated swatch and supply pooled menu previews. Color/curve constructors use the installed provider;
-font/texture constructors consume caller media services. `ConfigTexturePicker.lua` accepts API 1.12's `valueColors`
-schema list (the constructor's final optional argument), laid out in declared order after the optional checkbox.
-Picker fields reserve the same value-column width; accessories anchor to its right edge and grow left.
-`ConfigValueSwatch.lua` owns group spacing and accessory sizes; hosts use its `LayoutValueControls`
-for their own compound rows and after changing accessory visibility.
+`ConfigPickerControl.lua` owns Orbit's flat dark control, compact arrow and open/hover border. API 1.17's
+`Config.ApplyPickerValueWarning(layout, control, warning, value)` adds its value badge: one lazily created frame per
+pooled control, left of the arrow, with the value text ending before it only while shown. It caches `visible(value)`;
+`Config.RefreshPickerValueWarning(control)` reapplies that result after enable or mixed changes.
+`MediaMenu.lua` owns the matching flat popup, catalog filtering, selection, positioning and dismissal. Its fixed search
+header sits above a virtualized scroll child; the shared `ScrollBar.lua` owns wheel and drag movement. Consumers retain
+the closed control's text, texture and animated swatch and supply pooled menu previews. Color/curve constructors use the
+installed provider; font/texture constructors consume caller media services. `ConfigTexturePicker.lua` accepts API
+1.12's `valueColors` schema list (the constructor's final optional argument), laid out in declared order after the
+optional checkbox. Picker fields reserve the same value-column width; accessories anchor to its right edge and grow
+left. `ConfigValueSwatch.lua` owns group spacing and accessory sizes; hosts use its `LayoutValueControls` for their own
+compound rows and after changing accessory visibility.
 
 ## Gotchas
 - Media services supply `list`, `fetch`, `isValid`, defaults and a localized None label. A consumer `isPreferredItem`
@@ -24,6 +27,12 @@ for their own compound rows and after changing accessory visibility.
 - API 1.15 accepts optional `media.fontLabel(name)` for closed font previews, menu labels and search; selection and
   callbacks retain the catalog name. Optional `media.firstFont` places that name before the ordinary font groups when
   it matches the search. Consumers without these fields retain raw names and the existing ordering.
+- The value badge only takes mouse motion: clicks fall through to the picker, while hover shows the private tooltip
+  (title, then wrapped text, `ANCHOR_RIGHT`) and keeps the picker's hover border. It hides while the picker is disabled
+  or its row is mixed, and that tooltip closes only when the badge owns it. `Layout:ReleaseControl` clears the badge
+  before re-enabling or unparenting, so reuse cannot show it or snap its inset at another scale.
+- The badge uses `transmog-icon-warning-small`, which `Blizzard_TransmogTemplates` loads on Retail 12.1.5.70575 and
+  Forever 1.60.1.70205. Do not substitute art without an observed Forever failure; native rendering is unverified.
 - Missing color editing support leaves previews visible with editing disabled; provider/session ownership prevents stale
   writes after a control is recycled.
 - Consumers supply editable authored color records and class-color policy, including transparent-color previews.

@@ -16,8 +16,11 @@ edits and binds callbacks to caller-supplied validity predicates. `CanInteract` 
 dialogs supply view generations; Orbit supplies its captured editing context. `disabledReason`, `sourceText` and
 `scopeText` accept localized text or providers and join existing hover help, never extra passive rows.
 Colour rows may explicitly set `inlineSource=true`; `LayoutControls` fits that source beside the label without wrapping
-or changing row height. Readouts resolve an effective value without a setting writer. The
-library owns presentation and input rejection; consumers own dependencies, source meaning and inheritance actions.
+or changing row height. Readouts resolve an effective value without a setting writer. API 1.17's dropdown
+`valueWarning = { title, text, visible }` resolves both texts through `ResolveText`; `visible` is a boolean or
+`function(value)`. `BindDefinition` passes the table through unguarded: its readers cannot write, and pooled release
+drops them. The library owns presentation and input rejection; consumers own dependencies, source meaning and
+inheritance actions.
 API 1.16's `CreateTaperedDivider` defaults to the shared colour and one physical pixel, re-snapped on show, after
 scale/display events and by `RefreshDividerPixels()`; explicit colour or logical height arguments are kept.
 `CreateSectionDivider(parent, headerY)` spans `parent` 18 units below a header row. Panels and tab bars use these

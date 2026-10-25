@@ -48,9 +48,9 @@ profile/theme policy.
 - Addon repositories ignore their local library links; this repository tracks the actual source. Keep the library
   project available during development.
 - Consumer `.pkgmeta` externals use `MoONSHO7/Orbit-Libs`, a completed `LibOrbitUI-*` release's full commit SHA and
-  `path: LibOrbitUI/LibOrbitUI-1.0`. API 1.16 adds public slider lifecycle methods and divider defaults, independently
-  of the package version; current pins and pending repins live in the workspace `orbit-libraries` skill's Current
-  delivery section.
+  `path: LibOrbitUI/LibOrbitUI-1.0`. API 1.17 adds the dropdown value-warning badge (1.16: slider lifecycle methods
+  and divider defaults), independently of the package version; current pins and pending repins live in the workspace
+  `orbit-libraries` skill's Current delivery section.
 - Development junctions alone deliver nothing to players: each change needs a verified release, consumer repins and
   addon releases. Automatic latest-release selection remains deferred.
 - Settings and services remain private to each addon. Only the protocol-1 settings-window coordinator is shared across

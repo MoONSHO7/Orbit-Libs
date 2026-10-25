@@ -34,7 +34,8 @@ without changing caller schemas. `ConfigPanel:ApplyControlState` shares disabled
 disabled labels stay readable and the input blocker retains reason/help hover without adding a body explanation.
 Singular and indexed value checkboxes combine their own availability with that parent row's enabled state.
 `RenderControl` also rejects callbacks after hiding or pooled reuse. `mixed` plus consumer-localized `mixedText` renders
-indeterminate checkboxes and unknown slider/dropdown values until an explicit edit; consumers own compatible merging.
+indeterminate checkboxes and unknown slider/dropdown values until an explicit edit, hiding any dropdown value warning;
+consumers own compatible merging.
 `type="readout"` uses `getValue`/`formatter` without committing. `sourceText` and `scopeText` join existing tooltip help;
 `actionText`/`onAction` or `inheritText`/`onInherit` adds an owner action. `metadataActions` (`text`, `callback`) preserves
 additional owner choices. Each action shares the control's input and lifetime guards; release clears every callback.

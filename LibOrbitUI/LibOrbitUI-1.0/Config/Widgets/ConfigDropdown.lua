@@ -76,7 +76,8 @@ function Config:CreateDropdown(
     callback,
     valueCheckboxCfg,
     valueColorCfg,
-    multiSelectCfg
+    multiSelectCfg,
+    valueWarningCfg
 )
     local Layout = self
     local Constants = self.configOptions.constants
@@ -101,6 +102,7 @@ function Config:CreateDropdown(
     frame.dropValue = multiSelectCfg and CopySelection(initialValue) or initialValue
     frame.dropCallback = callback
     frame.dropMultiSelect = multiSelectCfg
+    frame.dropValueWarning = valueWarningCfg
 
     local function SelectedOption()
         if frame.dropMultiSelect or frame.configMixed then
@@ -120,6 +122,8 @@ function Config:CreateDropdown(
     end
 
     local function UpdatePreview()
+        local warning = not frame.dropMultiSelect and frame.dropValueWarning or nil
+        Config.ApplyPickerValueWarning(Layout, frame.Control, warning, frame.dropValue)
         frame.Control.Text:SetFontObject(Constants.UI.LabelFont)
         if frame.configMixed then
             frame.Control.Text:SetText(frame.configMixedText)
