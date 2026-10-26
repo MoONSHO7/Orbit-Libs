@@ -56,15 +56,11 @@ local function AppendSpellEntry(entries, name, spellID, passive, subName)
     }
 end
 
-local function OpenPetSpellbook()
-    if
-        PlayerSpellsUtil
-        and PlayerSpellsUtil.OpenToSpellBookTabAtCategory
-        and PlayerSpellsUtil.SpellBookCategories
-        and PlayerSpellsUtil.SpellBookCategories.Pet
-    then
-        PlayerSpellsUtil:OpenToSpellBookTabAtCategory(PlayerSpellsUtil.SpellBookCategories.Pet)
-    end
+-- Addon-called PlayerSpellsUtil openers taint PlayerSpellsFrame's tab tracker and spell buttons; off-bar commands
+-- press the native spellbook opener instead: Forever's spellbook-only micro button, else Retail's combined one.
+local function PetBookOpenerAction()
+    local button = SpellbookMicroButton or PlayerSpellsMicroButton
+    return button and { type = "click", clickbutton = button } or nil
 end
 
 local function GetPetBarSlot(actionID)
@@ -95,8 +91,7 @@ local function AppendPetAction(entries, info, slot)
         name = info.name,
         lowerName = lib.Fold(info.name),
         icon = info.iconID,
-        secure = actionSlot and { type = "pet", action = actionSlot } or nil,
-        onClick = not actionSlot and OpenPetSpellbook or nil,
+        secure = actionSlot and { type = "pet", action = actionSlot } or PetBookOpenerAction(),
     }
 end
 

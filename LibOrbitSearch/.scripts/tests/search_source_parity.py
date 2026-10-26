@@ -227,41 +227,40 @@ class SearchSourceParityTests(unittest.TestCase):
                     assert(search:Query("attack", options)[1].secure.action == 7)
                 """)
 
-    def test_off_bar_pet_commands_open_the_native_book_without_casting(self):
-        lua = runtime(True)
-        lua.execute("""
-            Enum.SpellBookItemType = {Spell = 1, PetAction = 3}
-            CastPetAction = function() error("no pet bar action") end
-            C_ActionBar = {GetPetActionPetBarIndices = function() return nil end}
-            C_SpellBook = {
-                GetNumSpellBookSkillLines = function() return 0 end,
-                GetSpellBookSkillLineInfo = function() error("no player lines") end,
-                HasPetSpells = function() return 1 end,
-                GetSpellBookItemInfo = function()
-                    return {itemType = 3, name = "Stay", actionID = 79, iconID = 56}
-                end,
-                CastSpellBookItem = function() error("must not cast from Lua") end,
-            }
-            PlayerSpellsUtil = {
-                SpellBookCategories = {Pet = 3},
-                OpenToSpellBookTabAtCategory = function(self, category)
-                    assert(self == PlayerSpellsUtil and category == 3)
-                    mock.openedPetBook = true
-                end,
-            }
-            local search = Search("spellbook")
-            local entry = search:Query("stay", options)[1]
-            assert(entry and not entry.secure and not entry.passive and entry.onClick)
-            entry.onClick()
-            assert(mock.openedPetBook)
-            C_ActionBar = nil
-            FireEvent("PET_UI_UPDATE")
-            entry = search:Query("stay", options)[1]
-            assert(entry and not entry.secure)
-            PlayerSpellsUtil = nil
-            entry.onClick()
-            assert(#mock.errors == 0)
-        """)
+    def test_off_bar_pet_commands_press_each_clients_native_spellbook_opener(self):
+        for family in ("retail", "forever"):
+            with self.subTest(family=family):
+                lua = runtime(True)
+                lua.globals().family = family
+                lua.execute("""
+                    Enum.SpellBookItemType = {Spell = 1, PetAction = 3}
+                    CastPetAction = function() error("no pet bar action") end
+                    C_ActionBar = {GetPetActionPetBarIndices = function() return nil end}
+                    C_SpellBook = {
+                        GetNumSpellBookSkillLines = function() return 0 end,
+                        GetSpellBookSkillLineInfo = function() error("no player lines") end,
+                        HasPetSpells = function() return 1 end,
+                        GetSpellBookItemInfo = function()
+                            return {itemType = 3, name = "Stay", actionID = 79, iconID = 56}
+                        end,
+                        CastSpellBookItem = function() error("must not cast from Lua") end,
+                    }
+                    PlayerSpellsUtil = setmetatable({}, {__index = function(_, key)
+                        error("addon Lua reached PlayerSpellsUtil." .. key)
+                    end})
+                    PlayerSpellsMicroButton = {name = "PlayerSpellsMicroButton"}
+                    SpellbookMicroButton = family == "forever" and {name = "SpellbookMicroButton"} or nil
+                    local search = Search("spellbook")
+                    local entry = search:Query("stay", options)[1]
+                    assert(entry and not entry.passive and not entry.onClick)
+                    assert(entry.secure.type == "click" and not entry.secure.action)
+                    assert(entry.secure.clickbutton == (SpellbookMicroButton or PlayerSpellsMicroButton))
+                    PlayerSpellsMicroButton, SpellbookMicroButton = nil, nil
+                    FireEvent("PET_UI_UPDATE")
+                    entry = search:Query("stay", options)[1]
+                    assert(entry and not entry.secure and not entry.onClick)
+                    assert(#mock.errors == 0)
+                """)
 
     def test_toy_search_preserves_native_filters(self):
         lua = runtime(True)

@@ -6,7 +6,15 @@ local MAX_HEIGHT = 300
 local ROW_PREVIEW = 13
 local CONTROL_PREVIEW = 12
 
-function Config:CreateFontPicker(parent, label, initialFont, callback, valueColorCfg)
+function Config:CreateFontPicker(
+    parent,
+    label,
+    initialFont,
+    callback,
+    valueColorCfg,
+    valueCheckboxesCfg,
+    valueColorsCfg
+)
     local media = self.pickerOptions.media
     local FontLabel = media.fontLabel or tostring
     local MediaMenu = self.mediaMenu
@@ -87,11 +95,19 @@ function Config:CreateFontPicker(parent, label, initialFont, callback, valueColo
 
     self:LayoutPickerLabelAndControl(frame, label)
 
-    if valueColorCfg then
-        self:ApplyValueColorSwatch(frame, valueColorCfg)
+    local valueControls = self:ApplyValueCheckboxes(frame, valueCheckboxesCfg)
+    if valueColorsCfg then
+        for index, cfg in ipairs(valueColorsCfg) do
+            valueControls[#valueControls + 1] = self:ApplyValueColorSwatch(frame, cfg, nil, index)
+        end
+    elseif valueColorCfg then
+        valueControls[#valueControls + 1] = self:ApplyValueColorSwatch(frame, valueColorCfg)
     elseif frame.ValueColorSwatch then
         frame.ValueColorSwatch:Hide()
     end
+    -- Checkboxes then swatches from the right edge; a wider group narrows the picker instead of covering it.
+    local accessoryWidth = self:LayoutValueControls(frame, unpack(valueControls))
+    frame.Control:SetPoint("RIGHT", frame, "RIGHT", -math.max(C.Widget.ValueWidth, accessoryWidth), 0)
 
     frame:SetSize(C.Widget.Width, C.Widget.Height)
     return frame

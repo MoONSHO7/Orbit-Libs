@@ -120,7 +120,15 @@ function Config.InstallPickerWidgets(layout, options)
         layout:RegisterControlPool("Font", "fontPool", ReleaseMedia)
         layout:RegisterControlPool("Texture", "texturePool", ReleaseMedia)
         layout:RegisterWidgetType("font", function(container, def, getValue, callback)
-            local widget = layout:CreateFontPicker(container, def.label, getValue(), callback, def.valueColor)
+            local widget = layout:CreateFontPicker(
+                container,
+                def.label,
+                getValue(),
+                callback,
+                def.valueColor,
+                def.valueCheckboxes,
+                def.valueColors
+            )
             layout:AttachLabelTooltip(widget, def.label, def.tooltip)
             return widget
         end)

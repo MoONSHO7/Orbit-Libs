@@ -24,7 +24,7 @@ The path-filtered workflows run on relevant changes pushed to `main` and share r
 1.1, LibOrbitColorPicker 1.2 and LibOrbitGlow 1.8; LibOrbitSearch starts at 1.0. Package versions are independent of
 runtime API revisions.
 
-Orbit, Portal, Compass, Status and Talents manually pin each verified library release commit and nested runtime path
+Orbit, Portal, Compass, Events and Talents manually pin each verified library release commit and nested runtime path
 in `.pkgmeta`. BigWigs fetches and embeds those externals normally; automatic latest-release selection is deferred.
 After publication, verify the assets, update affected consumer pins and validate their packages. Players receive the
 library update through a subsequent consumer addon release.

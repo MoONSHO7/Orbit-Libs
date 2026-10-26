@@ -563,6 +563,7 @@ class TextureSwatchStates(unittest.TestCase):
         for source in (
             "Config/ConfigPickerWidgets.lua", "Config/Widgets/ConfigValueSwatch.lua",
             "Config/Pickers/ConfigTexturePicker.lua", "Config/Pickers/ConfigColorCurvePicker.lua",
+            "Config/Pickers/ConfigFontPicker.lua",
         ):
             self.lua.execute((RUNTIME / source).read_text(encoding="utf-8"), "Test", self.lua.globals().addon)
         self.lua.execute(r'''
@@ -575,7 +576,7 @@ class TextureSwatchStates(unittest.TestCase):
                     end,
                     close = function(owner) state.closed[owner] = (state.closed[owner] or 0) + 1 end,
                 },
-                media = {defaultTexture = "Smooth", noneLabel = "None",
+                media = {defaultTexture = "Smooth", noneLabel = "None", defaultFont = "Sans", fallbackFont = "fallback",
                     fetch = function(kind, name) return kind .. "/" .. name end,
                     isValid = function() return true end, list = function() return {"Smooth"} end},
             })
@@ -641,6 +642,40 @@ class TextureSwatchStates(unittest.TestCase):
             assert(health.value.pins == firstResult.pins and background.value.pins == secondResult.pins)
             control.ValueCheckbox:SetChecked(true); control.ValueCheckbox:Fire("OnClick")
             assert(state.gradient == true and state.writes == 3)
+        ''')
+
+    def test_font_rows_order_checkboxes_then_swatches_and_narrow_the_picker(self):
+        self.lua.execute(r'''
+            local definition = {type = "font", label = "Font", default = "Sans",
+                valueCheckboxes = {
+                    {initialValue = true, tooltip = "Shadow", callback = function(value) state.shadow = value end},
+                    {initialValue = false, tooltip = "Outline", callback = function(value) state.outline = value end},
+                },
+                valueColors = {Swatch("Text", Curve(1, 1)), Swatch("Label", Curve(0.5, 1))}}
+            local control = Render(definition)
+            local shadow, outline = unpack(control.ValueCheckboxes)
+            local text, label = unpack(control.ValueColorSwatches)
+            assert(shadow:GetChecked() and not outline:GetChecked(), "checkboxes start from their initial values")
+            for _, width in ipairs({500, 340}) do
+                control:SetWidth(width)
+                local lastRight = select(2, HorizontalBounds(control.Control))
+                for _, accessory in ipairs({shadow, outline, text, label}) do
+                    local left, right = HorizontalBounds(accessory)
+                    assert(left >= lastRight, "checkboxes then swatches, none covering the picker or each other")
+                    lastRight = right
+                end
+                assert(lastRight == width - Constants.Widget.ValueInset, "the group ends at the row's right edge")
+            end
+            outline:SetChecked(true); outline:Fire("OnClick")
+            assert(state.outline == true and state.shadow == nil, "each checkbox writes only its own value")
+            text:Fire("OnClick", "LeftButton")
+            assert(state.opens[#state.opens].owner == text, "each swatch opens its own editor")
+            layout:Reset(container)
+            local plain = Render({type = "font", label = "Font", default = "Sans", valueColor = Swatch("Only", Curve(1, 1))})
+            assert(plain == control, "the pooled font row is reused")
+            assert(not shadow:IsShown() and not outline:IsShown() and not text:IsShown() and not label:IsShown(),
+                "a reused row drops the previous checkboxes and swatches")
+            assert(plain.ValueColorSwatch:IsShown(), "and shows only its single swatch")
         ''')
 
     def test_value_groups_grow_left_from_the_right_edge_when_resized_or_reused(self):

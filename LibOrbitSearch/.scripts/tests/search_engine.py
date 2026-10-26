@@ -616,6 +616,47 @@ CASES = {
         FireEvent("EVENT_TOYS")
         assert(#mock.timers == 0, "a disabled search unregisters source events")
     """,
+    "opening a search warms cold kinds one per frame before its first query": r"""
+        local function Total()
+            local total = 0
+            for _, count in pairs(mock.builds) do total = total + count end
+            return total
+        end
+        local function Frame()
+            local frame = lib._warmFrame
+            if not (frame and frame.handler) then return false end
+            local before = Total()
+            frame.handler(frame, 0.016)
+            assert(Total() - before <= 1, "one warm-up frame built several kinds")
+            return true
+        end
+        mock.entries.toys = { Entry("toys", "Alpha", 1) }
+        search:SetOpen(true)
+        assert(Total() == 0, "opening built indexes synchronously")
+        local frames = 0
+        while Frame() do frames = frames + 1; assert(frames < 20, "warm-up did not settle") end
+        assert(Total() == 6 and frames == 7, "warm-up built " .. Total() .. " kinds in " .. frames .. " frames")
+        assert(Names(Run("alpha")) == "Alpha" and Total() == 6, "the first query rebuilt warm indexes")
+        search:SetOpen(false)
+        FireEvent("EVENT_TOYS")
+        search:SetOpen(true)
+        while Frame() do end
+        assert(mock.builds.toys == 2 and Total() == 7, "reopening rebuilt more than the dirty kind")
+        search:SetOpen(false)
+        lib:InvalidateAll()
+        search:SetOpen(true, "locations")
+        assert(not Frame(), "a scoped open warmed native indexes")
+        search:SetOpen(false)
+        search:SetOpen(true)
+        assert(Frame() and Total() == 8, "the first warm-up frame did not build")
+        assert(Names(Run("alpha")) == "Alpha" and Total() == 13, "an early query left cold kinds unbuilt")
+        assert(Frame() and not Frame() and Total() == 13, "warm-up rebuilt kinds an early query built")
+        lib:InvalidateAll()
+        search:SetOpen(true)
+        assert(lib._warmFrame.handler ~= nil, "reopening over dirty kinds did not warm them")
+        search:SetOpen(false)
+        assert(lib._warmFrame.handler == nil, "a closed search kept its warm-up driver")
+    """,
     "a throwing index source retires previous entries and reports once": r"""
         mock.entries.toys = { Entry("toys", "Kept Toy", 1) }
         Run("kept")

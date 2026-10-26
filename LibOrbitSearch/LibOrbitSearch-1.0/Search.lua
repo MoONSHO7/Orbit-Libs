@@ -81,12 +81,15 @@ function SearchMixin:IsEnabled()
     return lib._enabledSearches[self] == true
 end
 
-function SearchMixin:SetOpen(open)
+function SearchMixin:SetOpen(open, scope)
     lib._openSearches[self] = open and true or nil
-    if not open then
+    if open then
+        self._queryScope = scope
+    else
         self._queryScope = nil
         self:EndSessions()
     end
+    lib:_WarmOpenSearches()
 end
 
 function SearchMixin:NotifySettingsChanged()

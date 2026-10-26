@@ -67,21 +67,11 @@ function Talents:GetAvailability()
     return "ready"
 end
 
-local function OpenTalent(entry)
-    if InCombatLockdown() or GetConfigID() ~= entry.configID then
-        return
-    end
-    if not PlayerSpellsUtil or not PlayerSpellsUtil.OpenToClassTalentsTab then
-        return
-    end
-    PlayerSpellsUtil.OpenToClassTalentsTab()
-    local frame = PlayerSpellsFrame and PlayerSpellsFrame.TalentsFrame
-    if frame and frame.GetActiveTab and frame.SetTab then
-        frame:SetTab(frame:GetActiveTab())
-    end
-    if frame and frame.OnPreviewSearchResultClicked then
-        frame:OnPreviewSearchResultClicked({ name = entry.name })
-    end
+-- Addon-called PlayerSpellsUtil openers taint PlayerSpellsFrame's tab tracker and spell buttons; results press the
+-- native talent opener instead: Forever's talents-only micro button, else Retail's combined one.
+local function TalentOpenerAction()
+    local button = TalentMicroButton or PlayerSpellsMicroButton
+    return button and { type = "click", clickbutton = button } or nil
 end
 
 local function GetSpellField(spellID, method)
@@ -189,7 +179,7 @@ local function AppendEntry(entries, configID, treeID, node, entryID, info, rank,
         maxRank = info.maxRanks,
         learned = rank > 0,
         passive = passive,
-        onClick = PlayerSpellsUtil and PlayerSpellsUtil.OpenToClassTalentsTab and OpenTalent or nil,
+        secure = TalentOpenerAction(),
     }
 end
 

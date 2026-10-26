@@ -84,7 +84,7 @@ public refreshes and deferred display events; explicit arguments keep their logi
 tab scrolls reserve the pixel they clip while omitted dividers reserve nothing.
 
 `python .scripts/tests/tooltips.py` checks private and borrowed tooltip ownership, secret geometry, pixel borders,
-consumer-local asset paths, localized mouse hints and byte-identical relocation of the original mouse TGAs.
+consumer-local asset paths, localized mouse hints, ordered modifier keycaps and the original mouse TGAs' bytes.
 
 `python .scripts/tests/value_warning.py` renders shipped dropdown schemas through the panel, pool and picker-control
 owners with the real Pixel service, in both client fixtures at three frame scales. It covers value-driven badge
@@ -97,7 +97,7 @@ and allocation-free refreshes. Retail `15881d5` (12.1.5.70575) and Forever `e3ec
 
 ## Gotchas
 - These simulations do not certify WoW focus, rendering, protected operations or taint. After `/reload`, switch between
-  Compass's two editors, Portal, Status, Orbit and a Blizzard frame; compare direct settings with Edit Mode openings,
+  Compass's two editors, Portal, Events, Orbit and a Blizzard frame; compare direct settings with Edit Mode openings,
   exit/suspend, enter combat, reopen and check BugSack. Repeat without Orbit, including a picker or focused input during
   close.
 - The runtime XML loads coordination/lifecycle before ConfigDialog. Orbit's `check-library-api.py` rejects packages

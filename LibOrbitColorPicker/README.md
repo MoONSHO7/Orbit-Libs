@@ -24,7 +24,7 @@ releases relevant changes pushed to Orbit-Libs `main` under `LibOrbitColorPicker
 only the Lua, XML, checkerboard and MIT license under `LibOrbitColorPicker-1.0/`; a SHA256 sidecar accompanies it. Other
 libraries retain separate release histories.
 
-`.scripts/tests/embedded_assets.py` executes revision 13 from materialized Orbit, Status and renamed-host paths, both
+`.scripts/tests/embedded_assets.py` executes revision 13 from materialized Orbit, Events and renamed-host paths, both
 path separators and Latin/CJK locales. It checks checkerboard/license closure, duplicate-copy asset ownership, and the
 class-icon/plain-colour pin visual switch. `single_color_drops.py` drives the real swatch drag scripts through drop,
 apply, cancel and manual edits. These support the path and drop contracts; native rendering and editor-session

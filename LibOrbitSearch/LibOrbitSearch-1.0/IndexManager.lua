@@ -355,6 +355,63 @@ function lib:_EnsureKindsBuilt(enabledKinds)
     return rebuilt
 end
 
+-- [ WARM-UP ]----------------------------------------------------------------------------------------------------------
+-- Opening a search builds its cold or dirty kinds one per frame, so the first query never pays every build at once.
+local function NextWarmKind()
+    local warmed = lib._warmedKinds
+    for search in pairs(lib._openSearches) do
+        local demand = search:GetIndexDemand()
+        for _, row in ipairs(search:GetKinds()) do
+            local kind = row.kind
+            if
+                demand[kind]
+                and not warmed[kind]
+                and lib._indexSources[kind]
+                and not lib._buildingKinds[kind]
+                and (lib._dirty[kind] or not lib._built[kind])
+            then
+                return kind
+            end
+        end
+    end
+end
+
+local function StopWarm()
+    lib._warmedKinds = nil
+    if lib._warmFrame then
+        lib._warmFrame:SetScript("OnUpdate", nil)
+    end
+end
+
+local function FindWarmKind()
+    local ok, kind = pcall(NextWarmKind)
+    if not ok then
+        lib:_Report("warm-up: " .. tostring(kind))
+        return nil
+    end
+    return kind
+end
+
+local function WarmStep()
+    local kind = FindWarmKind()
+    if not kind then
+        StopWarm()
+        return
+    end
+    lib._warmedKinds[kind] = true
+    lib:_EnsureKindsBuilt({ [kind] = true })
+end
+
+function lib:_WarmOpenSearches()
+    self._warmedKinds = self._warmedKinds or {}
+    if not FindWarmKind() then
+        StopWarm()
+        return
+    end
+    self._warmFrame = self._warmFrame or CreateFrame("Frame")
+    self._warmFrame:SetScript("OnUpdate", WarmStep)
+end
+
 function lib:IsIndexEntryCurrent(entry)
     local revision = self._entryOwners[entry]
     return revision ~= nil
@@ -378,4 +435,7 @@ if lib._rebuildTimer then
         lib._pendingRebuildKinds[kind] = lib._pendingRebuildKinds[kind] or lib._kindRevisions[kind] or 0
     end
     lib._rebuildTimer = C_Timer.NewTimer(REBUILD_DELAY, RebuildOpenSearches)
+end
+if lib._warmedKinds then
+    lib._warmFrame:SetScript("OnUpdate", WarmStep)
 end

@@ -9,7 +9,7 @@ An addon that needs search creates an instance, lists the kinds its search inclu
 Sources and providers register once per session and serve every instance that lists their kind.
 
 ## Implementation
-Load order is the XML manifest: `LibOrbitSearch-1.0.lua` claims LibStub revision 7 (API/provider/index contract 1),
+Load order is the XML manifest: `LibOrbitSearch-1.0.lua` claims LibStub revision 8 (API/provider/index contract 1),
 `NativeContract.lua` defines native function/event checks and item-load receipts, the engine files follow, `Sources/`
 registers the built-in index sources, and `Finalize.lua` adopts existing sessions and reconciles demand after the
 complete install.
@@ -37,25 +37,25 @@ sourceless `ids` kind, plus optional `GetKindLabel(row)`, `IsKindEnabled(row)`, 
 combine client policy with saved selection through their own predicates; disabling one instance never unregisters a
 shared source.
 
-`IndexManager.lua` builds on the first unscoped query that includes a kind. Availability probes are cheap,
-side-effect-free source methods; omitted probes preserve external-source compatibility. A builder that discovers
-unavailable data may return `nil, "pending"|"unsupported", reason`; `{}` means a successful empty list. Missing/failed
-sources contribute no actionable entries. Dirty marks retire old entries immediately; open searches rebuild their
-current `GetIndexDemand()` union through one 0.5 s timer from the first dirty mark; later marks do not postpone it.
-Provider-scoped queries skip native indexes, master assembly
-and recent boosts, and suppress that instance's deferred index demand; an unscoped query or Recents restores it. Close
-clears scope. Per-kind revisions preserve notifications when a synchronous query rebuilds first, and reject results
-invalidated/replaced during a build. Optional side-effect-free `source:IsExpired()` expires ready or pending data on a
-later unscoped query; it creates no timer. Closed searches rebuild on their next query. Native enumeration can invalidate an
-earlier sibling in the same query; one bounded second pass reconciles only same-source kinds previously ready in that
-query. It does not retry failed, pending or self-invalidated builds. Invalidating a warm rebuild advances its generation
-even when its previous rows were already retired. Retirement clears consumers' assembled masters immediately.
+`IndexManager.lua` builds on the first unscoped query that includes a kind; opening a search (`SetOpen(true, scope?)`)
+warms its dirty or cold demanded kinds one per frame until done, scoped or closed. Availability probes are cheap and
+side-effect-free; omitting one keeps external sources compatible. A builder that discovers unavailable data may return
+`nil, "pending"|"unsupported", reason`; `{}` means a successful empty list. Missing/failed sources contribute no
+actionable entries. Dirty marks retire old entries immediately; open searches rebuild their current `GetIndexDemand()`
+union through one 0.5 s timer from the first dirty mark; later marks do not postpone it. Provider-scoped opens and
+queries skip native indexes, master assembly and recent boosts, and suppress that instance's deferred index demand; an
+unscoped query or Recents restores it. Close clears scope. Per-kind revisions preserve notifications when a synchronous
+query rebuilds first, and reject results invalidated/replaced during a build. Optional side-effect-free
+`source:IsExpired()` expires ready or pending data on a later unscoped query; it creates no timer. Closed searches
+rebuild on their next query. Native enumeration can invalidate an earlier sibling in the same query; one bounded second
+pass reconciles only same-source kinds ready earlier in it. It does not retry failed, pending or self-invalidated
+builds. Invalidating a rebuild advances its generation even after its rows retired. Retirement clears consumer masters.
 
 Native events follow the union of enabled consumers' selected kinds and pass `C_EventUtils.IsEventValid`. Unsupported
 sources keep only valid `wakeEvents` (default ADDON_LOADED/PLAYER_ENTERING_WORLD); pending sources also keep their data
-events. Optional `source:ShouldInvalidate(event, unit, success)` may return false during an owned synchronous native
-enumeration transaction; it suppresses only that source. Errors report and invalidate; removed/replaced sources cannot
-be dirtied by the previous owner's callback. Item receipts remain separate.
+events. Optional `source:ShouldInvalidate(event, unit, success)` returns false when an event cannot change its rows (an
+owned native enumeration, an unchanged input); it suppresses only that source. Errors report and invalidate; removed or
+replaced sources cannot be dirtied by the previous owner's callback. Item receipts remain separate.
 Registry, enable/disable, settings and wake events rebuild demand; other data events only dirty their kinds
 unless included kinds or ID demand drifted. Sources whose availability changes on a non-wake event call
 `NotifyIndexSourceChanged`. `IDLookup.lua` independently gates item/spell APIs and events, keeps valid
@@ -71,8 +71,8 @@ enabled demand or native availability retires built indexes before unobserved mu
 `BeginSessions(callback)` starts a session group; registry changes, `NotifySettingsChanged`, `NotifyProviderChanged` and
 subsequent queries reconcile its enabled, available providers without restarting unchanged sessions. Each session
 captures its provider and generation; removal/replacement releases the original owner once. `EndSessions`,
-`SetOpen(false)` and `Disable` retire the group. `SetOpen(true)` only marks index-refresh interest; callers still start
-providers with `BeginSessions`.
+`SetOpen(false)` and `Disable` retire the group. `SetOpen(true)` marks index-refresh interest and starts warm-up;
+callers still start providers with `BeginSessions`.
 
 `Matcher.lua` parses instance labels/aliases and scores exact > prefix > word start > substring > fuzzy, with tiers 6
 (id exact) to 1. `Merge.lua` merges live rows by tier and priority band; provider rows retain owner identity so

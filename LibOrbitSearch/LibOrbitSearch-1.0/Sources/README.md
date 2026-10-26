@@ -21,8 +21,8 @@ collection is ready. Product selection stays in each Search instance.
 | Currencies.lua | CurrencyInfo.currencyID is stable identity. Expand headers forward and restore recorded indices in reverse, including duplicate/nested names. Native TokenFrame opening is offered only while that panel/function exists. |
 | Macros.lua | Constants.MacroConsts supplies the account/character boundary. Macro index is session-local action identity; invalidation must retire displayed payloads before indices can refer to another macro. |
 | Professions.lua | Capture the entire GetProfessions tuple, including holes and Forever's seventh position. Spellbook offsets supply actual action spells. Entry identity is skillLine:spellID; never cast a professionID as a spell. |
-| Spellbook.lua | Native subnames distinguish ranks while spell IDs retain action identity; SPELL_TEXT_UPDATE refreshes late text. Pet commands use petaction:actionID plus book-slot/bank identity, with secure pet actions only for native pet-bar slots (Forever's Mkb set). Pet-bar changes retire copied slots. Off-bar commands open the pet book; they never become spell links or tracked spells. |
-| Mounts.lua | Unfiltered owned IDs and GetMountInfoByID provide favorites independently of displayed journal filters. Summon is optional. MountTypeTags uses explicit non-flying types, native steady-flight evidence and unlocked skyriding data; unknown types stay unclassified. |
+| Spellbook.lua | Native subnames distinguish ranks while spell IDs retain action identity; SPELL_TEXT_UPDATE refreshes late text. Pet commands use petaction:actionID plus book-slot/bank identity, with secure pet actions only for native pet-bar slots (Forever's Mkb set). Pet-bar changes retire copied slots. Off-bar commands click the native spellbook micro button (Forever's spellbook-only one, else Retail's combined one); they never become spell links or tracked spells. |
+| Mounts.lua | Unfiltered owned IDs and GetMountInfoByID provide favorites independently of displayed journal filters. Summon is optional. MountTypeTags uses explicit non-flying types (read once per mount per session), native steady-flight evidence and unlocked skyriding data; unknown types stay unclassified. Collection changes have their own events, so SPELLS_CHANGED invalidates only when the skyriding unlock differs from the last build's. |
 | Pets.lua | Species and every owned nickname remain aliases. One stable representative per species prefers summonability, then favorite, then GUID; its action/favorite fields describe that instance. Battle-family terms require native canBattle; unsummonable entries remain passive. Deletion retires rows; only CRITTER companion events invalidate pets. |
 | Heirlooms.lua | Catalog ownership is separate from carried item ownership. Only carried heirlooms receive item-use attributes; absent quality enums omit enrichment. Item-load receipts recover missing catalog names and keyword data. This source does not manufacture a collection-creation action. |
 | Toys.lua | Filtered count and index remain paired; search preserves native journal filters. Neither verified client offers an unfiltered toy enumerator, so hidden toys remain outside this source. Item-load completion refreshes missing names. |
@@ -30,7 +30,7 @@ collection is ready. Product selection stays in each Search instance.
 | EquipmentSets.lua | Native set IDs identify records; secure equipmentset actions require the native set name. Equipment events retire stale names/counts, and consumers can pick up the stable set ID. |
 | Outfits.lua | Native unlock and owned records supply stable outfit IDs. Secure actions use playerFacingOutfitIndex, never outfitID; disabled outfits have no action. The gamepad-only spellbook tab does not gate native outfit enumeration. |
 | Reputation.lua | Native faction IDs identify records and resolve navigation after header changes. Builds restore headers/selection; native standing and description supply terms without changing At War, watched or inactive state. |
-| Talents.lua | The active combat config supplies visible tree:node:entry identities, spell text, native tree/group labels, ranks and passive terms. Tiered nodes distribute purchased ranks across entries in order; an explicit empty description override is complete. Caller-localized learned/unlearned terms describe each entry. Results open the native talent search; they neither allocate points nor cast spells. |
+| Talents.lua | The active combat config supplies visible tree:node:entry identities, spell text, native tree/group labels, ranks and passive terms. Tiered nodes distribute purchased ranks across entries in order; an explicit empty description override is complete. Caller-localized learned/unlearned terms describe each entry. Results click the native talent micro button (Forever's talents-only one, else Retail's combined one); they neither allocate points nor cast spells. |
 | Recipes.lua | Only the accessible current profession's native filtered list is indexed, with profession/category/state topics and optional schematic output/reagent/currency names. Data-source changes retire entries; activation rechecks profession/source identity and opens the recipe without crafting. Search never changes native recipe filters. |
 
 Item metadata and counts use `C_Item.GetItemInfo` and `C_Item.GetItemCount`; bag readiness requires both, equipment only
@@ -57,6 +57,9 @@ catalog and may remain accessible after the native profession window closes.
   row-number or skill-line history into a new semantic identity.
 - Item/spell hyperlinks and secure attributes are immutable snapshots from a build; the consumer checks current index
   generation before hardware action, drag or menu dispatch.
+- Never open PlayerSpellsFrame from addon Lua (`PlayerSpellsUtil`, `SetTab`, talent search): its tab tracker reads the
+  old tab before writing, and the tainted rebuild blocks spellbook casts until `/reload`. Micro-button clicks toggle, so
+  an open frame closes (Retail on any tab), and no talent is highlighted.
 - Retail 12.1.5 and current Forever removed the deprecated item globals; never use them as availability evidence or
   fallback calls. Native item metadata can still be uncached after the namespaced API is available.
 
@@ -69,4 +72,5 @@ PetCollection. Item contracts were rechecked against Retail 12.1.5.70340 (`7b27d
 Search expansion was compared with Retail 12.1.5.70448 (`b9be937`) and Forever 1.60.1.70450 (`172a387`), including
 generated SpellBook, SkillInfo, Trait, TradeSkillUI, EquipmentManager, TransmogOutfitInfo and ReputationInfo contracts
 and loaded PlayerSpells, Professions, Collections, UIPanels and SecureTemplates behavior. Source availability does not
-certify in-game unlocks, actions or rendering.
+certify in-game unlocks, actions or rendering. Talent/pet openers match `MainMenuBarMicroButtons` and the secure `click`
+action on Retail 12.1.5.70575 (`15881d522`) and Forever 1.60.1.70205 (`e3ecc27b6`) through 1.60.1.70532 (`ca8368f2f`).

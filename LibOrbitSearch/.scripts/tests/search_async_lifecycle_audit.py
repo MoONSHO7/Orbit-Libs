@@ -516,13 +516,15 @@ class AsyncLifecycleAudit(unittest.TestCase):
             weak.receipt=lib._sourceItemPending.recipes
             itemRequestCache=lib._sourceItemRequests;idCaches=lib._idCaches
             oldIDFrame=lib._idFrame;oldEventFrame=lib._eventFrame
+            oldWarmFrame=lib._warmFrame;frameCount=#mock.frames
         """)
         upgrade(lua, 100)
         lua.execute(r"""
             CollectAudit()
             assert(not weak.native and not weak.lookup and not weak.talents and not weak.recipes and not weak.receipt)
             assert(lib._sourceItemRequests==itemRequestCache and lib._idCaches==idCaches)
-            assert(lib._idFrame==oldIDFrame and lib._eventFrame==oldEventFrame and #mock.frames==2)
+            assert(lib._idFrame==oldIDFrame and lib._eventFrame==oldEventFrame and lib._warmFrame==oldWarmFrame)
+            assert(#mock.frames==frameCount,"an embedded upgrade created frames")
             assert(next(lib._sourceItemBuilders)==nil)
             mock.itemNames[123]="needle ID"
             FireEvent("GET_ITEM_INFO_RECEIVED",123,true)

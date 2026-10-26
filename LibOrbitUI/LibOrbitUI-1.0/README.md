@@ -35,6 +35,9 @@ and pooled expiry, and checkbox value-column swatches whose single-colour editor
 API 1.15 adds consumer-local font labels and an optional leading font choice without changing stored catalog names.
 API 1.16 adds slider drag callbacks, silent reinitialization and commit cancellation, plus one-pixel divider defaults.
 API 1.17 adds an optional dropdown value-warning badge in the value column, with a private hover tooltip.
+API 1.18 lets font rows carry ordered `valueCheckboxes` and `valueColors`; a wider group narrows the picker.
+Click hints take trailing modifier names drawn as Shift/Control/Alt keycaps (`Hold` draws keys alone), replacing
+`ControlScroll`/`ShiftRight`.
 `Config.CreateDialog` installs the lifecycle and Escape owners; custom shells opt into each explicitly.
 `registerWidgets(layout)` remains the consumer-owned control hook.
 

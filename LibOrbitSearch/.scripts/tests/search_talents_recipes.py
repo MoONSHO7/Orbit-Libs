@@ -68,10 +68,8 @@ C_Traits={
     PurchaseRank=function() error("search must never purchase talents") end,
     SetSelection=function() error("search must never select talents") end,
 }
-PlayerSpellsUtil={OpenToClassTalentsTab=function()
-    mock.calls.opens=mock.calls.opens+1
-    PlayerSpellsFrame={TalentsFrame={OnPreviewSearchResultClicked=function(_,info) mock.highlight=info.name end}}
-end}
+PlayerSpellsMicroButton={name="PlayerSpellsMicroButton"}
+PlayerSpellsUtil=setmetatable({},{__index=function(_,key) error("addon Lua reached PlayerSpellsUtil."..key) end})
 """
 
 RECIPES = r"""
@@ -141,7 +139,8 @@ class TalentsAndRecipes(unittest.TestCase):
             assert(#Query(search,"needle")==2)
             local focus=Query(search,"precision")[1]
             assert(focus.id=="7:11:21" and focus.spellID==101 and focus.rank==2 and focus.maxRank==3)
-            assert(focus.learned and focus.passive and focus.icon==501 and not focus.secure)
+            assert(focus.learned and focus.passive and focus.icon==501 and not focus.onClick)
+            assert(focus.secure.type=="click" and focus.secure.clickbutton==PlayerSpellsMicroButton)
             assert(focus.topic=="Needlecraft · Weaving · Rank 2/3")
             assert(#Query(search,"weaving")==2)
             assert(Query(search,"passive")[1]==focus and Query(search,"rank 2")[1]==focus)
@@ -165,20 +164,12 @@ class TalentsAndRecipes(unittest.TestCase):
                 end,
                 GetSpecialization=function() error("Forever has no player specialization") end,
             }
+            TalentMicroButton={name="TalentMicroButton"}
             local search=NewSearch("talents")
             local row=Query(search,"precision")[1]
             assert(row.configID==81 and row.id=="7:11:21")
-            PlayerSpellsUtil.OpenToClassTalentsTab=function()
-                mock.calls.opens=mock.calls.opens+1
-                PlayerSpellsFrame={TalentsFrame={
-                    GetActiveTab=function() return 2 end,
-                    SetTab=function(_,tab) mock.viewedTab=tab end,
-                    OnPreviewSearchResultClicked=function(_,info)
-                        assert(mock.viewedTab==2);mock.highlight=info.name
-                    end,
-                }}
-            end
-            row.onClick(row);assert(mock.highlight=="Needle Focus" and mock.calls.opens==1)
+            assert(row.secure.type=="click" and row.secure.clickbutton==TalentMicroButton and not row.onClick)
+            assert(#mock.errors==0)
         """)
 
     def test_talent_late_config_event_refresh_and_disabled_mutations(self):
@@ -204,17 +195,16 @@ class TalentsAndRecipes(unittest.TestCase):
             assert(Query(search,"precision")[1].rank==1 and mock.calls.trees==3)
         """)
 
-    def test_talent_navigation_never_allocates_and_obeys_combat_and_config(self):
+    def test_talent_results_press_the_native_opener_and_never_run_blizzard_navigation(self):
         lua = runtime(TALENTS)
         lua.execute(r"""
             local search=NewSearch("talents")
             local row=Query(search,"precision")[1]
-            assert(mock.calls.opens==0)
-            mock.combat=true;row.onClick(row);assert(mock.calls.opens==0)
-            mock.combat=false;mock.configID=82;row.onClick(row);assert(mock.calls.opens==0)
-            mock.configID=81;row.onClick(row)
-            assert(mock.calls.opens==1 and mock.highlight==row.name)
-            PlayerSpellsUtil=nil;row.onClick(row);assert(mock.calls.opens==1)
+            assert(row.secure.type=="click" and row.secure.clickbutton==PlayerSpellsMicroButton)
+            assert(not row.onClick and not PlayerSpellsFrame)
+            PlayerSpellsMicroButton=nil;FireEvent("TRAIT_CONFIG_UPDATED",81)
+            row=Query(search,"precision")[1]
+            assert(row and not row.secure and not row.onClick)
             assert(#mock.errors==0)
         """)
 

@@ -20,15 +20,18 @@ table.freeze(EXPLICIT)
 
 local Tags = {}
 lib._MountTypeTags = Tags
+-- A mount's type never changes, so only its first build reads the extra info and its discarded long text fields.
+local mountTypes = {}
+
+function Tags.IsSkyridingUnlocked()
+    return C_MountJournal ~= nil
+        and C_MountJournal.IsDragonridingUnlocked ~= nil
+        and C_MountJournal.IsDragonridingUnlocked() == true
+end
 
 local function BuildDragonridingSet()
     local set = {}
-    if
-        C_MountJournal
-        and C_MountJournal.GetCollectedDragonridingMounts
-        and C_MountJournal.IsDragonridingUnlocked
-        and C_MountJournal.IsDragonridingUnlocked()
-    then
+    if C_MountJournal and C_MountJournal.GetCollectedDragonridingMounts and Tags.IsSkyridingUnlocked() then
         for _, id in ipairs(C_MountJournal.GetCollectedDragonridingMounts() or {}) do
             set[id] = true
         end
@@ -47,9 +50,10 @@ function Tags.ForMount(mountID, steadyFlight)
     if not Tags._dragonridingSet then
         Tags.RefreshDragonriding()
     end
-    local mountTypeID
-    if C_MountJournal and C_MountJournal.GetMountInfoExtraByID then
+    local mountTypeID = mountTypes[mountID]
+    if mountTypeID == nil and C_MountJournal and C_MountJournal.GetMountInfoExtraByID then
         mountTypeID = select(5, C_MountJournal.GetMountInfoExtraByID(mountID))
+        mountTypes[mountID] = mountTypeID
     end
     local base = steadyFlight and FLYING_TAG or mountTypeID and EXPLICIT[mountTypeID]
     if Tags._dragonridingSet[mountID] then

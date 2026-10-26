@@ -124,7 +124,7 @@ class NativeSourceAudit(unittest.TestCase):
             local second=Query(search,"choice")[1]
             assert(first.rank==3 and first.learned and second.rank==1 and second.learned)
             assert(first.id=="7:11:21" and second.id=="7:11:22")
-            assert(first.topic:find("Rank 3/3",1,true) and not first.secure)
+            assert(first.topic:find("Rank 3/3",1,true) and first.secure.type=="click" and not first.secure.spell)
             assert(mock.calls.entries==3, "entry metadata must be read once per entry")
             mock.nodes[11].ranksPurchased=2;FireEvent("TRAIT_NODE_CHANGED",11)
             assert(not search:IsEntryCurrent(first))

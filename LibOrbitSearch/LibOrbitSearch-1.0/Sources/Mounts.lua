@@ -20,7 +20,15 @@ function Mounts:GetAvailability()
     return Native.Require(C_MountJournal, "GetMountIDs", "GetMountInfoByID")
 end
 
+-- Collection changes have their own events; a spellbook change reaches mount rows only through the skyriding unlock.
+function Mounts:ShouldInvalidate(event)
+    return event ~= "SPELLS_CHANGED"
+        or self.skyridingUnlocked == nil
+        or lib._MountTypeTags.IsSkyridingUnlocked() ~= self.skyridingUnlocked
+end
+
 function Mounts:Build()
+    self.skyridingUnlocked = nil
     local entries = {}
     local ids = C_MountJournal.GetMountIDs()
     if not ids then
@@ -28,6 +36,7 @@ function Mounts:Build()
     end
     local MountTypeTags = lib._MountTypeTags
     MountTypeTags.RefreshDragonriding()
+    self.skyridingUnlocked = MountTypeTags.IsSkyridingUnlocked()
     for _, mountID in ipairs(ids) do
         local name, _, icon, _, _, _, favorite, _, _, _, isCollected, _, steadyFlight =
             C_MountJournal.GetMountInfoByID(mountID)

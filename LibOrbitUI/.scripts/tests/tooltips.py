@@ -1,4 +1,4 @@
-"""Exercise private tooltip styling, borrowing and embed-owned mouse artwork in Lua 5.1."""
+"""Exercise private tooltip styling, borrowing and embed-owned mouse and key artwork in Lua 5.1."""
 from pathlib import Path
 import hashlib
 import unittest
@@ -8,11 +8,11 @@ from lupa.lua51 import LuaRuntime
 RUNTIME = Path(__file__).resolve().parents[2] / "LibOrbitUI-1.0"
 HARNESS = r'''
 table.freeze = function(value) return value end
-SHIFT_KEY_TEXT = "Shift"
 function issecretvalue(value) return value == "secret" end
 function debugstack() return embeddedPath end
 function CreateSimpleTextureMarkup(path, w, h, x, y)
-    assert(w == 18 and h == 18 and x == 0 and y == -1)
+    local glyph = path:match("orbit%-(%a+)%-")
+    assert(h == 18 and x == 0 and y == -1 and w == (glyph == "key" and 36 or 18))
     return "<" .. path .. ">"
 end
 function Surface()
@@ -98,21 +98,44 @@ class Tooltips(unittest.TestCase):
             assert(not context.tooltip.shown)
         ''')
 
-    def test_mouse_art_stays_with_each_embedding_and_localized_modifiers(self):
+    def test_mouse_and_key_art_stay_with_each_embedding(self):
         first = self.first.LibOrbitUI.TooltipClick.Create(self.first.LibOrbitUI.TooltipClick)
         other = self.embedding("Second")
         second = other.LibOrbitUI.TooltipClick.Create(other.LibOrbitUI.TooltipClick)
         self.assertIn("AddOns/First/Libs/", first.Left(first, "Action"))
         self.assertIn("AddOns/Second/Libs/", second.Right(second, "Action"))
+        self.assertIn("AddOns/Second/Libs/LibOrbitUI-1.0/Rendering\\Assets\\orbit-key-alt.tga", second.Left(second, None, "Alt"))
+
+    def test_modifier_keys_lead_the_mouse_glyph_in_order(self):
         self.lua.execute('''
-            local labels={left="Left",right="Right",shift="Shift click",control="Strg"}
+            local labels={left="Left",right="Right",shift="Shift click"}
             local clicks=UI.TooltipClick:Create(function(key) return labels[key] end)
+            local function Key(name) return clicks:Left(nil, name):match("^(<[^>]+>) <") end
+            local shift, control, alt = Key("Shift"), Key("Control"), Key("Alt")
+            assert(shift:find("orbit-key-shift", 1, true) and control:find("orbit-key-control", 1, true))
+            assert(alt:find("orbit-key-alt", 1, true))
             assert(clicks:Left("Left")==clicks:Left())
             assert(clicks:Right("Right")==clicks:Right())
-            assert(clicks:Left("Shift click")=="Shift + "..clicks:Left())
-            assert(clicks:ControlScroll("Zoom")=="Strg + "..clicks:Middle("Zoom"))
+            assert(clicks:Left("Shift click")==shift.." "..clicks:Left())
+            assert(clicks:Left("Move", "Shift")==shift.." "..clicks:Left().." Move")
+            assert(clicks:Right("Right", "Alt")==alt.." "..clicks:Right())
+            assert(clicks:Scroll("Zoom", "Control")==control.." "..clicks:Middle("Zoom"))
+            assert(clicks:Scroll("Edge", "Shift", "Control")==shift.." "..control.." "..clicks:Scroll("Edge"))
+            assert(clicks:Middle("Reset", "Alt")==alt.." "..clicks:Middle("Reset"))
+            assert(not pcall(clicks.Left, clicks, "Move", "Command"), "an unknown modifier fails loudly")
+            assert(clicks:Hold("Ratings", "Shift")==shift.." Ratings", "a held key shows its keycap alone")
+            assert(clicks:Hold(nil, "Shift", "Alt")==shift.." "..alt)
+            assert(not pcall(clicks.Hold, clicks, "Ratings"), "holding needs a key")
             labels.left="Gauche"; assert(clicks:Left("Gauche")==clicks:Left())
+            local unlabelled=UI.TooltipClick:Create()
+            assert(unlabelled:Left("Move", "Shift")==clicks:Left("Move", "Shift"))
         ''')
+
+    def test_key_art_matches_the_mouse_canvas_at_twice_the_width(self):
+        for key in ("shift", "control", "alt"):
+            data = (RUNTIME / f"Rendering/Assets/orbit-key-{key}.tga").read_bytes()
+            width, height = int.from_bytes(data[12:14], "little"), int.from_bytes(data[14:16], "little")
+            self.assertEqual((data[2], data[16], width, height), (2, 32, 256, 128), key)
 
     def test_moved_art_preserves_original_bytes(self):
         hashes = {

@@ -12,8 +12,9 @@ resolved fonts and shadows; `TextPosition.lua` composes anchors and places autho
 logical coordinates. `GridMath.lua` maps authored dimensions to grid positions and extents.
 
 `Tooltip.lua` constructs private native tooltips with Orbit's default flat dark surface and pixel-scaled borders.
-`TooltipClick.lua` captures this embedding's runtime path and builds mouse hints from `Assets/` artwork; callers own
-localized action and modifier labels. The three original mouse TGAs moved byte-for-byte from Orbit Core.
+`TooltipClick.lua` captures this embedding's runtime path and builds mouse hints from `Assets/` artwork. Trailing
+modifier names (`Shift`, `Control`, `Alt`) lead the glyph as keycaps in the order given, and `Hold` draws them
+alone; callers own localized action text. The three original mouse TGAs moved byte-for-byte from Orbit Core.
 
 `ColorCurve.lua` samples ordinary authored color pins through a caller-supplied class resolver. Orbit extends its
 sampler instance with native curves, unit data and theme policy.

@@ -24,7 +24,7 @@ Development addons link directly to that directory:
 | `Orbit-Portal/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 | `Orbit-Compass/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 | `Orbit-NavBuilder/Orbit_Navigation/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
-| `Orbit-StatusWidget/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
+| `Orbit-Events/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 
 These are Windows directory junctions. Editing an addon library path edits the same physical files; `/reload` reads the
 changes immediately. Consumer-owned fetch and package tools materialize ordinary files without replacing those
@@ -48,9 +48,9 @@ profile/theme policy.
 - Addon repositories ignore their local library links; this repository tracks the actual source. Keep the library
   project available during development.
 - Consumer `.pkgmeta` externals use `MoONSHO7/Orbit-Libs`, a completed `LibOrbitUI-*` release's full commit SHA and
-  `path: LibOrbitUI/LibOrbitUI-1.0`. API 1.17 adds the dropdown value-warning badge (1.16: slider lifecycle methods
-  and divider defaults), independently of the package version; current pins and pending repins live in the workspace
-  `orbit-libraries` skill's Current delivery section.
+  `path: LibOrbitUI/LibOrbitUI-1.0`. API 1.18 adds font-row checkboxes, swatch lists and modifier keycap hints
+  (1.17: the dropdown value-warning badge), independently of the package version; current pins and pending repins
+  live in the workspace `orbit-libraries` skill's Current delivery section.
 - Development junctions alone deliver nothing to players: each change needs a verified release, consumer repins and
   addon releases. Automatic latest-release selection remains deferred.
 - Settings and services remain private to each addon. Only the protocol-1 settings-window coordinator is shared across

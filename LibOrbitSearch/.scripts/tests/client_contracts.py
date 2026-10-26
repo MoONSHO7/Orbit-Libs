@@ -404,6 +404,29 @@ class ClientContracts(unittest.TestCase):
             assert(search:Query("skyriding",options)[1].id==123)
         ''')
 
+    def test_spellbook_changes_rebuild_mounts_only_for_a_skyriding_unlock(self):
+        lua = runtime(True)
+        lua.execute('''
+            local unlocked,builds,extras=false,0,0
+            C_MountJournal={GetMountIDs=function() builds=builds+1; return {123,124} end,
+                GetMountInfoByID=function(id) return "needle mount "..id,5,1,false,true,1,false,false,nil,false,true,id,false end,
+                GetMountInfoExtraByID=function() extras=extras+1; return 1,"long text","long source",false,230 end,
+                SummonByID=function() end, IsDragonridingUnlocked=function() return unlocked end,
+                GetCollectedDragonridingMounts=function() assert(unlocked); return {123} end}
+            local search=Search("mounts")
+            local first=search:Query("needle",options)[1]
+            assert(first and builds==1 and extras==2 and first.lowerName:find("ground",1,true))
+            FireEvent("SPELLS_CHANGED")
+            assert(search:IsEntryCurrent(first) and search:Query("needle",options)[1]==first and builds==1,
+                "a spellbook change rebuilt unchanged mounts")
+            FireEvent("COMPANION_LEARNED")
+            assert(not search:IsEntryCurrent(first),"a learned mount kept the old index")
+            assert(search:Query("needle",options)[1] and builds==2 and extras==2,"a rebuild reread fixed mount types")
+            unlocked=true; FireEvent("SPELLS_CHANGED")
+            local skyriding=search:Query("skyriding",options)[1]
+            assert(skyriding and skyriding.id==123 and builds==3,"the skyriding unlock did not rebuild mounts")
+        ''')
+
     def test_toys_heirlooms_and_macro_limits(self):
         lua = runtime(True)
         lua.execute('''
