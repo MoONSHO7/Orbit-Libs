@@ -26,8 +26,8 @@ end
 function CreateFont(name)
     local font = {name = name}
     function font:SetFont(path, size, flags) self.path, self.size, self.flags = path, size, flags end
-    function font:SetShadowColor() end
-    function font:SetShadowOffset() end
+    function font:SetShadowColor(r, g, b, a) self.shadow = {r, g, b, a} end
+    function font:SetShadowOffset(x, y) self.offset = {x, y} end
     return font
 end
 function NewRegion(silentSetFont)
@@ -190,6 +190,23 @@ class FontRefusalCases:
             mock.replays = {}
             Frame()
             assert(type(region.fontObject) == "table" and region.font.size == 14 and not Updating())
+        ''')
+
+    def test_font_object_setter_builds_one_shadowed_object_per_request(self):
+        self.lua.execute('''
+            local Text = addon.LibOrbitUI.Text
+            mock.ready = true
+            local pixel = {Multiple = function(_, value, scale) return value * 2 / scale end}
+            local setter = Text.CreateFontSetter(pixel, "Probe", 1, -1)
+            local first, second, third = NewRegion(), NewRegion(), NewRegion()
+            setter(first, ORBIT_FONT, 14, "OUTLINE")
+            setter(second, ORBIT_FONT, 14, "OUTLINE")
+            setter(third, ORBIT_FONT, 12)
+            local font = first.fontObject
+            assert(font.name == "Probe1" and second.fontObject == font and third.fontObject.name == "Probe2")
+            assert(font.path == ORBIT_FONT and font.size == 14 and font.flags == "OUTLINE" and third.fontObject.flags == "")
+            assert(font.shadow[1] == 0 and font.shadow[2] == 0 and font.shadow[3] == 0 and font.shadow[4] == 1)
+            assert(font.offset[1] == 2 and font.offset[2] == -2)
         ''')
 
     def test_conditional_access_waits_without_blocking_other_repairs_then_recovers(self):

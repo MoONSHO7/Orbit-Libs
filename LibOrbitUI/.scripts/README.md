@@ -7,92 +7,101 @@ Focused Lua 5.1 regressions for shared UI behavior.
 Verify coordination across private library embeddings without requiring an Orbit host.
 
 ## Implementation
-`python .scripts/tests/picker_menus.py` loads the shipped picker controls, virtualized menu, shared scrollbar, dropdown,
-font and texture constructors. Frame-boundary simulations cover detached popup ancestry/scale/owner-hide cleanup, flat
-Orbit styling, stable bounded rows, idle render counts, wheel/drag cancellation, pinned search focus, selection,
-actions, private tooltips, stale callbacks and closed previews. Native dropdown creation is rejected.
-The picker also runs the real Escape owner through dismissal, combat reopening and first creation during combat.
+Run each suite as `python .scripts/tests/<name>.py` from the LibOrbitUI wrapper directory with Lupa installed. Doubles
+mirror real client APIs; only library-internal collaborators are stubbed.
 
-`python .scripts/tests/chrome_assets.py` checks that native settings art is retained when the atlas resolves and that
-the caller's backdrop color is used when it does not. A user screenshot confirms housing-basic-container on Forever;
-other asset/runtime contracts remain separate checks.
+`core_services.py` drives Callbacks, Events, Throttle, Runtime, SettingsStore, Controller and Client: results and named
+error contexts, empty-name rejection, removal reports, bounded nested dispatch storage, positive finite intervals,
+infinite/deep/oversized setting rejection, indexed change reports, increasing lifecycle generations, and
+Retail/Forever/unknown classification from version and Legacy-addon signals. `controller_settings.py` verifies always-on
+controllers own no Enabled declaration and reject later writes.
 
-Run `python .scripts/tests/edit_mode_settings.py` from the LibOrbitUI wrapper directory with Lupa installed. It loads
-shipped coordinator, lifecycle, context, EditSession, schema, dialog and app-shell code through separate addon
-namespaces. Mock frames/native selection cover indexed/cross-addon handoffs, reentrant opens, delayed native
-availability, explicit exit policies, hidden-session cancellation, combat, context destruction, hosted and
-always-enabled control suppression, absence of enable-setting reads/writes and expired callbacks after refresh/reopen.
-Separate checks run real panel release and text-control cleanup to verify cached-tab/sizing invalidation and focus loss
-without writes.
+`addon_composition.py` runs Addon boot with a real Runtime: nothing applies before login readiness, rejected stores
+never become ready, hosted products are ready without a local store, movement follows the controller's active state, and
+restoration prefers saved, frame and record defaults while respecting drags, combat and anchor clearing.
 
-`python .scripts/tests/movement_input.py` runs the real Movement, Geometry and EditSession owners through a consumed
-nudge, combat entry on either side of the lockdown query, key arrival before polling, regen and combat destruction.
+`picker_menus.py` loads picker controls, virtualized menu, shared scrollbar, dropdown, font and texture constructors:
+detached popup ancestry/scale/owner-hide cleanup, flat styling, bounded rows with one overscan row, idle render counts,
+wheel targets, drag cancellation, pinned/explicit search, leading-divider removal, multi-select check insets and
+deduplicated selections, invalid-media fallbacks, actions, private tooltips, stale callbacks and closed previews. The
+real Escape owner runs through dismissal, combat reopening and first creation in combat; native dropdowns are rejected.
 
-`python .scripts/tests/controller_settings.py` loads the real SettingsStore and Controller in Lua 5.1. It verifies
-always-on controllers remove the Enabled declaration, report their fixed policy without a store read and reject later
-writes, while ordinary controllers retain the default setting contract.
-
-`python .scripts/tests/prompt_buttons.py` runs the real button factory, layout recycling and confirmation owner with
-fresh and recycled buttons. It checks visible accept/cancel actions, callback replacement, single acceptance and
+`chrome_assets.py` keeps native settings art when the atlas resolves and the caller's backdrop color otherwise; a user
+screenshot confirms housing-basic-container on Forever. `prompt_buttons.py` runs the button factory, layout recycling
+and confirmation owner with fresh and recycled buttons: visible actions, callback replacement, single acceptance and
 cancellation without a write.
 
-`python .scripts/tests/control_states.py` exercises shipped schema, panel, pools and native-widget adapters. It covers
-dynamic disabled/hidden state, deferred accessory/option rejection, unavailable pickers, readable reason/help, mixed
-checkbox/slider/dropdown values, read-only effective values, source/scope hover help, multiple guarded inheritance actions,
-footer actions and disabled-to-enabled reuse. Inline colour sources retain row height, clip long localized labels/source
-within narrow rows, refresh without recreating inputs, and restore half-width/wrapping on hide and pooled reuse.
-Texture-row cases cover two curve swatches with independent labels/editors, guarded writes, simulated non-overlap
-geometry and dual-to-single-to-none pooled reuse, including rejection of callbacks from released picker sessions.
-Checkbox groups cover independent values/tooltips, ordered spacing, parent/child availability, captured callback
-expiry, native art retention and indexed/singular/empty/sparse pool transitions.
-Checkbox-row swatches cover single-colour curve transport, value-text spacing, separate input, guarded writes and reuse.
-Label and overflow hovers also construct/refresh in combat using native click propagation templates.
-The checkbox/slider templates, loaded MinimalSlider enable behavior and
-affected native input/alpha APIs match Retail `09b9db7` (12.1.0.69933) and Forever
-`e3ecc27` (1.60.1.70205); native focus, input and rendering still require both clients.
+`edit_mode_settings.py` loads coordinator, lifecycle, context, EditSession, schema, dialog and app-shell code through
+separate addon namespaces. Mock frames/native selection cover indexed/cross-addon handoffs, reentrant opens, delayed
+native availability, exit policies, hidden-session cancellation, combat, context destruction, destroyed-shell reopening,
+dialog spec rejection before window allocation, uncached renders, hosted/always-enabled control suppression, the Enabled
+default and expired callbacks after refresh/reopen. Real panel release and text-control cleanup verify cached-tab/sizing
+invalidation and focus loss without writes.
 
-`python .scripts/tests/escape_close.py` loads the shipped Escape owner. It verifies isolated input, first attachment
-in combat, consumed Escape across combat entry, inherited hide/reopen, bounded restoration and custom close ownership.
-Restricted setters reject combat, and no runtime joins Blizzard's taint-sensitive global close registries.
+`movement_input.py` runs the real Movement, Geometry and EditSession owners through consumed nudges, combat entry on
+either side of the lockdown query, key arrival before polling, regen and combat destruction, plus nearest-edge
+orientation, increasing session generations, encounter blocking for sessions and resets, poll cadence, non-nesting
+transitions, zero-size overlays and selection handoff within one context.
 
-`python .scripts/tests/font_refusal.py` loads the shipped Text owner against a client that refuses cold `SetFont`
-calls and replays them once the file loads. It checks the latest request wins, shadow/color/justification survive,
-and font-object setters take ownership. Both client fixtures model post-initialization conditional access, explicit
-forbiddance and secret access results: blocked regions make no native reads/writes, ordinary repairs continue, access
-recovery restarts settling and the original deadline removes requests without touching regions. Native font loading
-and encounter access still need a cold game start and combat `/reload` verification.
+`control_states.py` exercises shipped schema, panel, pools and native-widget adapters: dynamic disabled/hidden state,
+deferred accessory/option rejection, unavailable pickers, reason/help, mixed values, read-only effective values,
+source/scope hover help, guarded inheritance/footer actions and disabled-to-enabled reuse. Inline colour sources keep
+row height, clip in narrow rows, refresh in place and restore width policy on hide and reuse. Texture rows cover two
+curve swatches with independent editors, guarded writes, non-overlap geometry and reuse that rejects released picker
+sessions; checkbox groups and checkbox-row swatches cover ordering, availability, callback expiry, native art,
+single-colour curves and pool transitions. Label and overflow hovers construct in combat through native click
+propagation templates. The checkbox/slider templates, MinimalSlider enable behavior and input/alpha APIs match Retail
+`09b9db7` (12.1.0.69933) and Forever `e3ecc27` (1.60.1.70205); native focus, input and rendering still need both
+clients.
 
-`python .scripts/tests/pixel_rounding.py` checks the shipped Pixel owner across display/frame scales, centered odd/even
-sizes, both coordinate signs, half-step ties and genuine subpixel offsets. Nudges must advance evenly and reverse
-without drift; signed-count conventions and secret passthrough stay intact.
+`config_widgets.py` reuses that harness for owner contracts: pooled button reparenting and text width, checkbox/edit-box
+initial state, line-mode heights, no auto-focus, frozen read-only text, format-input hover, wrapped metadata, stacking,
+enabled/unfaded release, guarded `onChange`, empty slider ranges, passive rows without scope hover, empty help,
+refreshes without relayout, ordered tabs and signature rebuilds, prompt installation and transfer boxes, stale
+colour/curve bindings after reuse, disabled swatches, empty curve results and coincident pins. A fresh runtime checks
+frozen defaults, `Config.Install`, the optional LibStub colour picker and window movability/combat hiding.
 
-`python .scripts/tests/range_slider.py` drives the shipped range slider through overlapping endpoints, drag direction,
-stationary ticks, minimum gaps, release/hide and reuse at multiple scales. Both client-labelled embeddings use the shared
-native boundary: Retail `b9be937` (12.1.5.70448) and Forever `e3ecc27` (1.60.1.70205) agree on generated Input APIs,
-loaded `InputUtil` scale conversion and `HybridScrollFrame` mouse-button polling. Native hit delivery still needs WoW.
+`escape_close.py` verifies isolated input, first attachment in combat, consumed Escape across combat entry, inherited
+hide/reopen, bounded restoration, custom close ownership, returned windows and non-frame rejection without a proxy.
+Restricted setters reject combat, and no runtime joins Blizzard's global close registries.
 
-`python .scripts/tests/slider_lifecycle.py` runs the shipped slider and layout pool against a template double that keeps
-Blizzard's own mouse/stepper scripts. It covers drag stop before release commit, disabled input, per-button press
-ownership, ancestor hide, public cancellation, silent value-only reinitialization, rebinding mid-press or from drag
-callbacks, stop-handler cancellation and pooled release/reuse without stale callbacks or stacked hooks. The loaded
-MinimalSlider and EditMode slider templates match on Retail `b9be937` (12.1.5.70448) and Forever `e3ecc27`
-(1.60.1.70205).
+`font_refusal.py` loads the Text owner against a client that refuses cold `SetFont` calls and replays them once the file
+loads. The latest request wins, shadow/color/justification survive, and font-object setters own one shadowed object per
+request. Both fixtures model post-initialization conditional access, forbiddance and secret access: blocked regions make
+no native reads/writes, other repairs continue, recovery restarts settling and the original deadline removes requests
+untouched. Native font loading and encounter access need a cold start and combat `/reload` verification.
 
-`python .scripts/tests/section_dividers.py` loads the real Pixel service with the divider, tab and panel owners at three
-screen heights and four frame scales. Default dividers stay one physical pixel in the shared colour after reparenting,
-public refreshes and deferred display events; explicit arguments keep their logical height, section offsets hold, and
-tab scrolls reserve the pixel they clip while omitted dividers reserve nothing.
+`pixel_rounding.py` checks Pixel across display/frame scales, centered odd/even sizes, both signs, half-step ties,
+subpixel offsets and the inclusive minimum frame scale: even reversible nudges, signed counts, secret passthrough and
+display notification only on a new screen scale. `rendering_contracts.py` checks TextPosition anchors and authored
+offsets, and that TextPosition, GridMath, Geometry and the ColorCurve sampler mixin are frozen.
 
-`python .scripts/tests/tooltips.py` checks private and borrowed tooltip ownership, secret geometry, pixel borders,
-consumer-local asset paths, localized mouse hints, ordered modifier keycaps and the original mouse TGAs' bytes.
+`range_slider.py` drives overlapping endpoints, drag direction, stationary ticks, minimum gaps, release/hide, reuse and
+the unconfigured two-endpoint default at multiple scales. Retail `b9be937` (12.1.5.70448) and Forever `e3ecc27`
+(1.60.1.70205) agree on generated Input APIs, `InputUtil` scale conversion and `HybridScrollFrame` mouse polling; native
+hit delivery needs WoW.
 
-`python .scripts/tests/value_warning.py` renders shipped dropdown schemas through the panel, pool and picker-control
-owners with the real Pixel service, in both client fixtures at three frame scales. It covers value-driven badge
-visibility, snapped value-column placement right of an unchanged box, grouping beside a value checkbox or swatch that
-never moves, the title/wrapped-body tooltip and owner-scoped cleanup, clicks that never reach the menu, mixed,
-multi-select and disabled states without rerunning the predicate, combat creation, pooled reuse without stale callbacks
-and allocation-free refreshes. Retail `15881d5` (12.1.5.70575) and Forever `e3ecc27`
-(1.60.1.70205) share the generated motion/click setters, load `transmog-icon-warning-small` and use the same motion-only
+`slider_lifecycle.py` runs the slider and layout pool against a template double that keeps Blizzard's mouse/stepper
+scripts: drag stop before release commit, disabled input, per-button press ownership, ancestor hide, public
+cancellation, silent reinitialization, rebinding mid-press or from drag callbacks, stop-handler cancellation and pooled
+release/reuse without stale callbacks or stacked hooks. The loaded MinimalSlider and EditMode slider templates match on
+Retail `b9be937` (12.1.5.70448) and Forever `e3ecc27` (1.60.1.70205).
+
+`section_dividers.py` loads the real Pixel service with the divider, tab and panel owners at three screen heights and
+four frame scales. Default dividers stay one physical pixel in the shared colour after reparenting, public refreshes and
+deferred display events; explicit arguments keep their logical height, section offsets hold, and tab scrolls reserve the
+pixel they clip while omitted dividers reserve nothing.
+
+`tooltips.py` checks private and borrowed tooltip ownership, name collisions that keep existing globals, contexts that
+need a name and destroy owned services once, secret geometry, pixel borders, consumer-local asset paths, localized mouse
+hints, ordered modifier keycaps and the original mouse TGAs' bytes.
+
+`value_warning.py` renders dropdown schemas through the panel, pool and picker-control owners with the real Pixel
+service, in both client fixtures at three frame scales: value-driven badge visibility, snapped placement right of an
+unchanged box, grouping beside a value checkbox or swatch, the title/wrapped-body tooltip and owner-scoped cleanup,
+clicks that never reach the menu, mixed/multi-select/disabled states without rerunning the predicate, combat creation,
+pooled reuse and allocation-free refreshes. Retail `15881d5` (12.1.5.70575) and Forever `e3ecc27` (1.60.1.70205) share
+the generated motion/click setters, load `transmog-icon-warning-small` and use the same motion-only
 `EncounterTimelineEventFrameTemplate` tooltip pattern; native hit testing and art still require WoW.
 
 ## Gotchas
@@ -102,6 +111,7 @@ and allocation-free refreshes. Retail `15881d5` (12.1.5.70575) and Forever `e3ec
   close.
 - The runtime XML loads coordination/lifecycle before ConfigDialog. Orbit's `check-library-api.py` rejects packages
   missing its required API and owners; published consumer pins still require a verified library release.
+- `config_widgets.py` imports `control_states.py`'s harness; harness changes there affect both suites.
 
 ## References
 [Dialog contract](../LibOrbitUI-1.0/Config/Dialogs/README.md), [library project](../README.md).

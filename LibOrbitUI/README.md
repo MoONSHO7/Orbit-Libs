@@ -1,9 +1,10 @@
 # LibOrbitUI
 
 ## Description
-The shared UI library for Orbit and independently installed addons, targeting WoW 12.1.0 and Lua 5.1. Its source and
-release metadata live in the Orbit-Libs repository. API 1.6 additionally identifies Retail and Forever for
-consumer-owned compatibility policy; Forever rendering and native behavior still require client verification.
+The shared UI library for Orbit and independently installed addons, targeting Retail 12.1.5, Forever 1.60.1 and
+Lua 5.1. Its source and release metadata live in the Orbit-Libs repository. API 1.6 additionally identifies Retail
+and Forever for consumer-owned compatibility policy; Forever rendering and native behavior still require client
+verification.
 
 ## Purpose
 Maintain movement, the settings window and renderer, common widgets, pixel rendering and cancellable work once.
@@ -20,6 +21,7 @@ Development addons link directly to that directory:
 | Addon path, relative to the workspace | Link target |
 |---|---|
 | `Orbit/Orbit/Core/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
+| `Orbit/Orbit_Sync/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 | `Orbit-Talents/Orbit-Talents/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 | `Orbit-Portal/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
 | `Orbit-Compass/Libs/LibOrbitUI-1.0` | `Orbit-Libs/LibOrbitUI/LibOrbitUI-1.0` |
@@ -67,4 +69,5 @@ profile/theme policy.
 
 ## References
 [Runtime contracts](LibOrbitUI-1.0/README.md), [release workflow](../.github/workflows/README.md), [.pkgmeta](.pkgmeta),
-[license](LICENSE), [pending changes](CHANGELOG.md), and [LibOrbitColorPicker](../LibOrbitColorPicker/README.md).
+[license](LICENSE), [changelog](CHANGELOG.md) (pending entries sit under `# Unreleased` until a release tag ships
+them) and [LibOrbitColorPicker](../LibOrbitColorPicker/README.md).

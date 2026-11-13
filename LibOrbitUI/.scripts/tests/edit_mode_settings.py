@@ -159,7 +159,7 @@ function InstallPresentation(UI)
             return { Content = {}, Header = {}, Footer = {}, ScrollFrame = NewWindow() }
         end
         function renderer:Render(panel, options)
-            self.scopeText = options.scopeText
+            self.scopeText, self.cache = options.scopeText, options.cache
             self.renders = (self.renders or 0) + 1
             self.widgets = {}
             for _, control in ipairs(options.controls) do options.renderControl({}, control) end
@@ -345,6 +345,7 @@ class EditModeSettings(unittest.TestCase):
             Enter(); app:ShowSettings(1); app:ShowSettings(2)
             assert(#app.dialogs[2].controls == 1)
             assert(app.dialogs[2].controls[1].definition.label == "Enabled")
+            assert(app.dialogs[2].controls[1].definition.default == true)
             assert(not app.dialogs[1]:IsShown() and app.dialogs[2]:IsShown())
             assert(app.dialogs[2].spec.isPreferredItem("Orbit UI"))
             assert(not app.dialogs[2].spec.isPreferredItem("Expressway"))
@@ -482,6 +483,30 @@ class EditModeSettings(unittest.TestCase):
             assert(not next(lifecycle.events.events) and not next(lifecycle.editSession.poll.events))
             dialog:Show(); assert(not dialog:IsShown())
             assert(dialog.renderer.invalidates == 1)
+        ''')
+
+    def test_dialog_specs_need_labels_and_tabs_and_render_without_panel_cache(self):
+        self.lua.execute('''
+            local Config = first.LibOrbitUI.Config
+            local tabs = { { id = "main", label = "Main", controls = {} } }
+            local context = { name = "Specs", tooltipHide = function() end }
+            local windows = #mock.frames
+            assert(not pcall(Config.CreateDialog, context, { closeLabel = "Close", tabs = tabs }))
+            assert(not pcall(Config.CreateDialog, context, { title = "Settings", tabs = tabs }))
+            assert(not pcall(Config.CreateDialog, context, { title = "Settings", closeLabel = "Close", tabs = {} }))
+            assert(#mock.frames == windows, "rejected specs must not allocate a window")
+            a:Show()
+            assert(a.renderer.renders == 1 and a.renderer.cache == false)
+        ''')
+
+    def test_destroyed_lifecycle_rejects_reopening_its_shell(self):
+        self.lua.execute('''
+            local dialog = NewWindow()
+            local lifecycle = first.LibOrbitUI.DialogLifecycle:Create({}, dialog, { editModePolicy = "manual" })
+            dialog:Show(); assert(lifecycle:IsOpen())
+            lifecycle:Destroy()
+            dialog:Show()
+            assert(not dialog:IsShown() and not lifecycle:IsOpen())
         ''')
 
     def test_same_shell_cannot_reopen_during_close_cleanup(self):

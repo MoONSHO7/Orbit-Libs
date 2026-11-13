@@ -446,6 +446,110 @@ class ClientContracts(unittest.TestCase):
             assert(#macros==2 and macros[2].secure.macro==121)
         ''')
 
+    def test_each_native_requirement_gates_its_source_alone(self):
+        toy_box = ('C_ToyBox={GetNumFilteredToys=function() return 0 end,GetToyFromIndex=function() end,'
+                   'GetToyInfo=function() end}')
+        spell_book = ('C_SpellBook={GetNumSpellBookSkillLines=function() return 0 end,'
+                      'GetSpellBookSkillLineInfo=function() end,GetSpellBookItemInfo=function() end}')
+        cases = (
+            ("toys", "PlayerHasToy=function() return true end", "missing:GetNumFilteredToys"),
+            ("toys", toy_box, "missing:PlayerHasToy"),
+            ("professions", "GetProfessions=function() end;GetProfessionInfo=function() end",
+             "missing:GetSpellBookItemInfo"),
+            ("spellbook", "Enum.SpellBookItemType={Spell=1}", "missing:GetNumSpellBookSkillLines"),
+            ("spellbook", "Enum.SpellBookItemType={Spell=1};C_Spell={};" + spell_book, "missing:GetSpellTexture"),
+        )
+        for kind, natives, missing in cases:
+            with self.subTest(kind=kind, missing=missing):
+                lua = runtime(True)
+                lua.globals().kind = kind
+                lua.globals().missing = missing
+                lua.execute(natives)
+                lua.execute('''
+                    local search=Search(kind)
+                    assert(#search:Query("needle",options)==0)
+                    local state,reason=lib:GetIndexSourceState(kind)
+                    assert(state=="unsupported" and reason==missing,tostring(state)..":"..tostring(reason))
+                    assert(#mock.errors==0)
+                ''')
+
+    def test_toy_and_mount_favorites_rank_and_uncollected_mounts_stay_out(self):
+        lua = runtime(True)
+        lua.execute('''
+            PlayerHasToy=function() return true end
+            C_ToyBox={GetNumFilteredToys=function() return 2 end,GetToyFromIndex=function(i) return 76+i end,
+                GetToyInfo=function(id) return id,"needle toy",1 end,GetIsFavorite=function(id) return id==78 end}
+            local toys=Search("toys"):Query("needle",options)
+            assert(#toys==2 and toys[1].id==78 and toys[1].favorite==true)
+            assert(toys[2].id==77 and toys[2].favorite==false)
+            C_MountJournal={GetMountIDs=function() return {1,2,3} end,
+                GetMountInfoByID=function(id)
+                    return "needle mount "..id,100+id,1,false,true,1,id==2,false,nil,false,id~=3,id,false
+                end}
+            local mounts=Search("mounts"):Query("needle",options)
+            assert(#mounts==2,"an uncollected mount was listed")
+            assert(mounts[1].id==2 and mounts[1].favorite==true and mounts[2].id==1 and mounts[2].favorite==false)
+            assert(#mock.errors==0)
+        ''')
+
+    def test_pet_species_terms_are_listed_once(self):
+        lua = runtime(True)
+        lua.execute('''
+            local nicknames={["Pet-1"]="Pinchy"}
+            C_PetJournal={GetOwnedPetIDs=function() return {"Pet-3","Pet-2","Pet-1"} end,
+                GetPetInfoByPetID=function(id)
+                    return 123,nicknames[id],1,0,0,0,false,"Needle Crab",1,1,nil,nil,nil,false,false
+                end}
+            local entry=Search("pets"):Query("needle crab",options)[1]
+            assert(entry.lowerName=="needle crab pinchy",entry.lowerName)
+            assert(entry.petGUID=="Pet-1" and entry.name=="Pinchy")
+        ''')
+
+    def test_active_spells_stay_visible_when_passives_are_hidden(self):
+        lua = runtime(True)
+        lua.execute('''
+            Enum.SpellBookItemType={Spell=1,Flyout=2}
+            C_SpellBook={GetNumSpellBookSkillLines=function() return 1 end,
+                GetSpellBookSkillLineInfo=function() return {itemIndexOffset=0,numSpellBookItems=2} end,
+                GetSpellBookItemInfo=function(slot)
+                    return {itemType=1,name=slot==1 and "needle strike" or "needle aura",spellID=40+slot,
+                        isPassive=slot==2,isOffSpec=false,subName=""}
+                end}
+            local search=Search("spellbook")
+            local visible=search:Query("needle",{maxResults=100,fuzzy=false,hidePassives=true})
+            assert(#visible==1 and visible[1].spellID==41 and visible[1].passive==false)
+            assert(#search:Query("needle",options)==2)
+        ''')
+
+    def test_professions_skip_incomplete_info_and_list_shared_spells_once(self):
+        lua = runtime(True)
+        lua.execute('''
+            GetProfessions=function() return 1,2,3 end
+            GetProfessionInfo=function(i)
+                if i==3 then return "needle partial",1,1,100,nil,nil,nil end
+                return "needle profession "..i,1,1,100,2,10,200+i
+            end
+            C_SpellBook={GetSpellBookItemInfo=function(slot)
+                return {name="needle action "..slot,spellID=1000+slot,isPassive=false}
+            end}
+            local result=Search("professions"):Query("needle",options)
+            assert(#result==2 and #mock.errors==0,#result)
+            for _,entry in ipairs(result) do assert(entry.id=="201:"..entry.spellID,entry.id) end
+        ''')
+
+    def test_currency_rows_without_a_stable_id_are_not_indexed(self):
+        lua = runtime(True)
+        lua.execute('''
+            local rows={{name="needle header",isHeader=true,isHeaderExpanded=true,currencyID=0},
+                {name="needle coin",currencyID=0},{name="needle mark",currencyID=300}}
+            C_CurrencyInfo={GetCurrencyListSize=function() return #rows end,
+                GetCurrencyListInfo=function(i) return rows[i] end,
+                ExpandCurrencyList=function() error("expanded rows need no change") end,
+                GetCurrencyListLink=function(i) return "currency:"..i end}
+            local result=Search("currencies"):Query("needle",options)
+            assert(#result==1 and result[1].id==300 and result[1].lowerName=="needle mark needle header")
+        ''')
+
 
 ITEM_SOURCE_SETUP = r'''
 mock.bags={{id=11,link="item:11"}}

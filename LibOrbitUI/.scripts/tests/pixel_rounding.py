@@ -27,6 +27,7 @@ function CreateFrame()
  function frame:RegisterEvent(event) self.events[event]=true end
  function frame:UnregisterAllEvents() self.events={} end
  function frame:SetScript(event,handler) self.scripts[event]=handler end
+ lastFrame=frame
  return frame
 end
 function Close(actual,expected,label)
@@ -129,6 +130,31 @@ assert(P:Snap(nil)==0 and P:EvenSnap(nil)==0 and P:ToCount(nil)==0 and P:Multipl
 local step=P:Multiple(1,0.73)
 local x,y=P:SnapPosition(2.2*step,-2.2*step,'CENTER',secret,secret,0.73)
 Close(x/step,2,'secret width bypass');Close(y/step,-2,'secret height bypass')
+''')
+
+    def test_display_changes_notify_only_when_the_screen_scale_moves(self):
+        lua = runtime(1080)
+        lua.execute(r'''
+local seen={}
+local pixel=addon.LibOrbitUI.Pixel:Create({onDisplayChanged=function(scale) seen[#seen+1]=scale end})
+local events=lastFrame
+assert(events.events.DISPLAY_SIZE_CHANGED and events.events.UI_SCALE_CHANGED and events.events.PLAYER_ENTERING_WORLD)
+assert(#seen==1);Close(seen[1],768/1080,'initial scale');Close(pixel:GetScale(),768/1080,'initial getter')
+events.scripts.OnEvent(events,'UI_SCALE_CHANGED')
+assert(#seen==1)
+physical_height=1440
+events.scripts.OnEvent(events,'DISPLAY_SIZE_CHANGED')
+assert(#seen==2);Close(seen[2],768/1440,'changed scale');Close(pixel:GetScale(),768/1440,'changed getter')
+pixel:Destroy()
+assert(not next(events.events) and events.scripts.OnEvent==nil)
+''')
+
+    def test_minimum_frame_scale_is_inclusive(self):
+        lua = runtime(768)
+        lua.execute(r'''
+Close(P:Snap(150,0.01),200,'snap at minimum');Close(P:Snap(150,0.005),150,'snap below minimum')
+Close(P:EvenSnap(150,0.01),200,'even snap at minimum');Close(P:Multiple(1,0.01),100,'multiple at minimum')
+Close(P:ToCount(100,0.01),1,'count at minimum')
 ''')
 
 

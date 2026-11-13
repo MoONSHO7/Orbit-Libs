@@ -328,7 +328,7 @@ class PickerMenuTests(unittest.TestCase):
             assert(state.renders==renders and menu.ScrollFrame:GetVerticalScroll()==1)
             menu.ScrollFrame:Fire("OnMouseWheel",-1);Tick(180)
             local position=menu.ScrollFrame:GetVerticalScroll()
-            assert(position>1 and menu.ScrollBar.scrollTarget==nil and state.allocations<=13)
+            assert(position==61 and menu.ScrollBar.scrollTarget==nil and state.allocations<=13)
             for index,slot in pairs(menu.rows) do assert(slot.Content.Text:GetText()==menu.filtered[index]) end
             renders=state.renders;Tick(180)
             assert(state.renders==renders and menu.ScrollFrame:GetVerticalScroll()==position)
@@ -388,6 +388,61 @@ class PickerMenuTests(unittest.TestCase):
             menu.ScrollFrame:Hide();assert(bar.scrollTarget==nil)
         ''')
 
+
+    def test_scrolled_rows_start_one_overscan_row_before_the_first_visible_row(self):
+        self.lua.execute(r'''
+            local frame=PreviewMenu(80);local menu=Open(frame)
+            menu.ScrollFrame:SetVerticalScroll(36*6)
+            assert(menu.rows[6] and menu.rows[6].Content.Text:GetText()=="Item006" and menu.rows[5]==nil)
+            menu.ScrollFrame:SetVerticalScroll(36*6+1)
+            assert(menu.rows[6] and menu.rows[5]==nil)
+        ''')
+
+    def test_unsorted_menus_drop_leading_dividers_and_honour_explicit_search(self):
+        self.lua.execute(r'''
+            local control=layout:CreateDropdown(Frame(),"Mode",{{divider=true},{text="A",value=1},{text="B",value=2}},1,Write)
+            local menu=Open(control)
+            assert(#menu.filtered==2 and menu.filtered[1].text=="A" and not menu.rows[1].Divider:IsShown())
+            local function Menu(search)
+                local owner=Frame();owner.Label=Frame(owner,"FontString")
+                local picker=layout:CreatePickerControl(owner)
+                local popup=layout.mediaMenu:Create(picker,{rowHeight=20,maxHeight=300,sorted=false,search=search,
+                    createRow=function(parent) local row=Frame(parent);row.Text=Frame(row,"FontString");return row end,
+                    renderRow=function(row,item) row.Text:SetText(item) end,onSelect=Write})
+                popup:Populate({"One","Two"},"One")
+                return popup
+            end
+            local plain,searchable=Menu(false),Menu(true)
+            assert(not plain.Search:GetParent():IsShown() and not plain.Search:HasFocus())
+            assert(searchable.Search:GetParent():IsShown() and searchable.Search:HasFocus())
+        ''')
+
+    def test_multiselect_rows_reserve_check_space_and_selection_is_deduplicated(self):
+        self.lua.execute(r'''
+            local single=layout:CreateDropdown(Frame(),"One",{{text="A",value="a"},{text="B",value="b"}},"a",Write)
+            local menu=Open(single)
+            assert(menu.rows[1].Content.points.TOPLEFT[2]==0)
+            menu:Hide()
+            local multi=layout:CreateDropdown(Frame(),"Many",{{text="A",value="a"},{text="B",value="b"},
+                {text="C",value="c"}},{"b","a","b"},Write,nil,nil,{emptyText="None",summary=function(n) return n.." selected" end})
+            menu=Open(multi)
+            assert(menu.rows[1].Content.points.TOPLEFT[2]==28)
+            Choose(menu,3)
+            assert(#state.value==3 and state.value[1]=="a" and state.value[2]=="b" and state.value[3]=="c")
+        ''')
+
+    def test_invalid_media_previews_fall_back_and_initial_choices_are_kept(self):
+        self.lua.execute(r'''
+            local texture=layout:CreateTexturePicker(Frame(),"Texture","Other",Write)
+            assert(texture.selectedTexture=="Other" and texture.Control.Texture.texture=="statusbar/Other")
+            local default=layout:CreateTexturePicker(Frame(),"Texture",nil,Write)
+            assert(default.selectedTexture=="Smooth" and default.Control.Texture.texture=="statusbar/Smooth")
+            layout.pickerOptions.media.isValid=function() return false end
+            local invalid=layout:CreateTexturePicker(Frame(),"Texture","Other",Write)
+            assert(invalid.Control.Texture.texture==nil and invalid.Control.Text:GetText()=="Other")
+            local font=layout:CreateFontPicker(Frame(),"Font","OrbitFont",Write)
+            assert(font.Control.Text.font[1]=="fallback")
+        ''')
 
 if __name__ == "__main__":
     unittest.main()

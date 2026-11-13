@@ -227,6 +227,17 @@ class EscapeClose(unittest.TestCase):
             assert(input:IsShown() and input.propagate and input.keyboardCalls == 1)
         ''')
 
+    def test_attach_returns_the_window_and_rejects_non_frames_without_a_proxy(self):
+        self.lua.execute('''
+            local EscapeClose = addon.LibOrbitUI.EscapeClose
+            frame = NewFrame()
+            assert(EscapeClose:Attach(frame) == frame)
+            assert(EscapeClose:Attach(frame) == frame and #mock.inputs == 1)
+            assert(not pcall(EscapeClose.Attach, EscapeClose, {}))
+            assert(not pcall(EscapeClose.Attach, EscapeClose, nil))
+            assert(#mock.inputs == 1)
+        ''')
+
     def test_runtime_has_no_taint_sensitive_global_close_registration(self):
         offenders = []
         for path in RUNTIME.rglob("*.lua"):

@@ -391,6 +391,21 @@ class NativeCategories(unittest.TestCase):
             assert(next(lib._eventFrame.events)==nil and #mock.errors==0)
         """)
 
+    def test_unnamed_outfits_are_not_indexed(self):
+        lua = runtime()
+        lua.execute("""
+            local function Outfit(id,name)
+                return {outfitID=id,name=name,icon=55,playerFacingOutfitIndex=id,situationCategories={},
+                    isEventOutfit=false,isDisabled=false}
+            end
+            C_TransmogOutfitInfo={IsTransmogEnabled=function() return true end,
+                GetOutfitsInfo=function() return {Outfit(1,""),Outfit(2,"Needle")} end}
+            local search=Search("outfits")
+            local result=search:Query("needle",options)
+            assert(#result==1 and result[1].id==2 and #lib._entries.outfits==1)
+            assert(#mock.errors==0)
+        """)
+
 
 if __name__ == "__main__":
     unittest.main()

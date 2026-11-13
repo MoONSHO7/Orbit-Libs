@@ -98,6 +98,38 @@ class Tooltips(unittest.TestCase):
             assert(not context.tooltip.shown)
         ''')
 
+    def test_tooltip_name_collision_is_rejected_before_any_global_is_replaced(self):
+        self.lua.execute('''
+            local existing = {}
+            Taken = existing
+            assert(not pcall(UI.Tooltip.Create, UI.Tooltip, "Taken", pixel))
+            assert(Taken == existing)
+            assert(not pcall(UI.CreateContext, {name="Taken",owner={}}))
+            assert(Taken == existing)
+        ''')
+
+    def test_context_requires_a_name_and_destroys_owned_services_once(self):
+        self.lua.execute('''
+            assert(not pcall(UI.CreateContext, {name="",owner={},pixel=pixel}))
+            assert(Tooltip == nil, "an unnamed context must not claim a tooltip global")
+            local counts = {runtime=0, pixel=0, lifecycle=0}
+            UI.Runtime = {Create=function() return {Destroy=function() counts.runtime = counts.runtime + 1 end} end}
+            UI.Pixel = {Create=function()
+                return {Multiple=pixel.Multiple, Destroy=function() counts.pixel = counts.pixel + 1 end}
+            end}
+            local context = UI.CreateContext({name="Lifetime",owner={}})
+            local lifecycle = {}
+            function lifecycle:Destroy()
+                counts.lifecycle = counts.lifecycle + 1
+                assert(context.destroyed, "lifecycles observe a destroyed context")
+                context.dialogLifecycles[self] = nil
+            end
+            context.dialogLifecycles[lifecycle] = true
+            context:Destroy(); context:Destroy()
+            assert(context.destroyed == true)
+            assert(counts.runtime == 1 and counts.pixel == 1 and counts.lifecycle == 1)
+        ''')
+
     def test_mouse_and_key_art_stay_with_each_embedding(self):
         first = self.first.LibOrbitUI.TooltipClick.Create(self.first.LibOrbitUI.TooltipClick)
         other = self.embedding("Second")

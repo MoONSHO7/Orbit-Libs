@@ -153,6 +153,17 @@ class RangeSlider(unittest.TestCase):
             Release();Event(4,'commit',20,30);Stopped(4)
         ''')
 
+    def test_unconfigured_slider_defaults_to_two_endpoints(self):
+        self.check('''
+            local fresh=addon.LibOrbitUI.Config:CreateRangeSlider(UIParent,226)
+            local thumbs={}
+            for _,frame in ipairs(state.frames) do
+                if frame:GetParent()==fresh and frame.kind=='Button' then thumbs[#thumbs+1]=frame end
+            end
+            fresh:SetRange(20,60)
+            assert(#thumbs==2 and thumbs[2]:IsShown() and fresh.low==20 and fresh.high==60)
+        ''')
+
     def test_single_thumb_ignores_equal_range_disambiguation(self):
         self.check('''
             Configure(0,false);rs:SetRange(25,25)

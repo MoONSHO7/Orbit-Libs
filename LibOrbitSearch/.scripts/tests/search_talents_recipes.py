@@ -339,6 +339,25 @@ class TalentsAndRecipes(unittest.TestCase):
             assert(mock.calls.trees==calls and not lib._eventFrame.events.SPELL_DATA_LOAD_RESULT)
         """)
 
+    def test_talent_config_without_visible_nodes_is_a_ready_empty_index(self):
+        lua = runtime(TALENTS)
+        lua.execute(r"""
+            for _,node in pairs(mock.nodes) do node.isVisible=false end
+            local search=NewSearch("talents")
+            assert(#Query(search,"needle")==0 and lib:GetIndexSourceState("talents")=="ready")
+            assert(next(mock.spellRequests)==nil and #mock.errors==0)
+        """)
+
+    def test_recipes_wait_while_no_profession_is_open(self):
+        lua = runtime(RECIPES)
+        lua.execute(r"""
+            mock.profession={professionID=0,professionName="",sourceCounter=0}
+            local search=NewSearch("recipes")
+            assert(#Query(search,"needle")==0 and mock.calls.recipes==0)
+            local state,reason=lib:GetIndexSourceState("recipes")
+            assert(state=="pending" and reason=="recipe-profession",tostring(state)..":"..tostring(reason))
+        """)
+
     def test_talent_failed_and_lost_pending_requests_retry_only_on_a_later_query(self):
         lua = runtime(TALENTS)
         lua.execute(r"""

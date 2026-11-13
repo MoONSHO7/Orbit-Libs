@@ -433,7 +433,8 @@ CASES = {
     "provider registration rejects malformed providers": r"""
         local changes = 0
         lib.RegisterCallback("test", "SourcesChanged", function() changes = changes + 1 end)
-        assert(select(2, lib:RegisterProvider("a", Provider({}, { contract = 2 }))) == "contract")
+        local ok, reason = lib:RegisterProvider("a", Provider({}, { contract = 2 }))
+        assert(ok == false and reason == "contract" and not lib:IsProviderRegistered("locations"))
         assert(select(2, lib:RegisterProvider("a", Provider({}, { Query = false }))) == "missing:Query")
         assert(select(2, lib:RegisterProvider("a", Provider({}, { kind = "toys" }))) == "kind")
         assert(lib:RegisterProvider("a", Provider({})))
@@ -798,6 +799,113 @@ CASES = {
             end
         end
         assert(compared > 300, "the corpus must exercise ranked ties")
+    """,
+    "bounded caches evict the least recently used key and reuse removed slots": r"""
+        local cache = lib._BoundedCache.Create(2)
+        cache:Set("a", 1); cache:Set("b", 2)
+        assert(cache:Get("a") == 1)
+        cache:Set("c", 3)
+        assert(cache:Get("b") == nil and cache:Get("a") == 1 and cache:Get("c") == 3, "a read did not refresh a")
+        cache:Set("a", 4); cache:Set("d", 5)
+        assert(cache:Get("c") == nil and cache:Get("a") == 4 and cache:Get("d") == 5, "a write did not refresh a")
+        cache:Remove("a"); cache:Set("e", 6)
+        assert(cache.count == 2 and cache:Get("d") == 5 and cache:Get("e") == 6)
+    """,
+    "an embedded upgrade keeps the first data event dirtying its kind": r"""
+        search:EnsureBuilt()
+        LoadAll(2)
+        FireEvent("EVENT_TOYS")
+        assert(lib._dirty.toys, "the upgraded copy dropped the first data event")
+        Run("x")
+        assert(mock.builds.toys == 2 and mock.builds.bags == 1)
+    """,
+    "fold reads nil as empty": r"""
+        assert(lib.Fold(nil) == "" and lib.Fold("") == "" and lib.Fold("Storm PEAKS") == "storm peaks")
+    """,
+    "typed ids span 1 to 10,000,000 and id 0 never requests native data": r"""
+        mock.spellNames[10000000] = "Edge Spell"
+        mock.spellNames[10000001] = "Beyond Spell"
+        assert(Names(Run("10000000")) == "Edge Spell")
+        mock.requestedSpell, mock.requestedItem = nil, nil
+        assert(#Run("10000001") == 0 and mock.requestedSpell == nil and mock.requestedItem == nil)
+        assert(#Run("0") == 0 and mock.requestedSpell == nil and mock.requestedItem == nil)
+    """,
+    "item keywords keep distinct subtypes and consumer terms across an embedded upgrade": r"""
+        INVTYPE_FINGER = "Finger"
+        local itemType, subType = "Armor", "Miscellaneous"
+        C_Item.GetItemInfo = function()
+            return "Band", nil, 1, 0, 0, itemType, subType, 1, "INVTYPE_FINGER", 1, 0, 0, 0, 1, nil, nil, false
+        end
+        lib:SetItemKeywordTerms({ ring = "loop" })
+        assert(lib._ItemKeywords.Build("item:1") == "Armor Miscellaneous Finger loop")
+        LoadAll(2)
+        local keywords = lib._ItemKeywords.Build("item:1")
+        assert(keywords == "Armor Miscellaneous Finger loop", keywords)
+        subType = "Armor"
+        assert(lib._ItemKeywords.Build("item:1") == "Armor Finger loop")
+    """,
+    "callbacks, keyword terms and search configs reject malformed input with their diagnostics": r"""
+        assert(not pcall(lib.RegisterCallback, "test", "Unknown", function() end))
+        assert(lib._callbacks.Unknown == nil)
+        assert(not pcall(lib.SetSourceKeywordTerms, lib, 5, {}) and lib._sourceKeywordTerms[5] == nil)
+        assert(not pcall(lib.SetSourceKeywordTerms, lib, "talents", "learned"))
+        local ok, err = pcall(lib.NewSearch, lib, { kinds = "bags" })
+        assert(not ok and err:find("NewSearch needs kinds", 1, true), err)
+    """,
+    "profiler spans end only when the profiler opened them": r"""
+        local active, opened, ended = false, 0, {}
+        lib:SetProfiler({
+            Begin = function() if active then opened = opened + 1; return opened, 0 end end,
+            End = function(group, name, start) ended[#ended + 1] = group .. "/" .. name .. "#" .. tostring(start) end,
+        })
+        Run("x")
+        assert(#ended == 0, ended[1])
+        active = true
+        Run("x")
+        assert(#ended == opened and ended[#ended] == "Search/Query#" .. opened, ended[#ended])
+    """,
+    "a provider that unregisters during a partial-filter query keeps the unfiltered fallback": r"""
+        lib:RegisterProvider("compass.locations", Provider({}, { Query = function()
+            lib:UnregisterProvider("compass.locations")
+            return {}
+        end }))
+        search:BeginSessions(function() end)
+        mock.entries.toys = { Entry("toys", "Locator Dornogal", 1) }
+        local results = Run("locat dornogal")
+        assert(Names(results) == "Locator Dornogal", Names(results))
+        assert(mock.sessionEnded == 1 and #mock.errors == 0)
+    """,
+    "unscoped provider queries say so and their rows are marked as provider rows": r"""
+        lib:RegisterProvider("compass.locations", Provider({ { id = "a", name = "Alpha", tier = 5 } }))
+        search:BeginSessions(function() end)
+        mock.entries.toys = { Entry("toys", "Alpha Toy", 1) }
+        local results = Run("alpha")
+        assert(Names(results) == "Alpha|Alpha Toy", Names(results))
+        assert(mock.lastQuery.scoped == false)
+        assert(results[1].provider == true and results[2].provider == nil)
+    """,
+    "legacy recents migrate with the newest pick stamped now and older picks an hour apart": r"""
+        mock.store = { "toys:A", "toys:B", "toys:C" }
+        lib._Recents.GetRankedKeys(search._config.recents, 10)
+        assert(mock.store[1] == nil)
+        for index, key in ipairs({ "toys:A", "toys:B", "toys:C" }) do
+            local record = mock.store[key]
+            assert(record.count == 1 and record.last == mock.now - (index - 1) * 3600, key)
+        end
+    """,
+    "tied recents rank by key and the empty query lists them in that order": r"""
+        local names = {}
+        for index = 1, 24 do names[index] = string.format("Pick%02d", index) end
+        mock.entries.toys = {}
+        for index = 1, 24 do
+            local entry = Entry("toys", names[(index * 7) % 24 + 1])
+            mock.entries.toys[index] = entry
+            search:Record(entry)
+        end
+        local ranked = lib._Recents.GetRankedKeys(search._config.recents, 50)
+        for index = 1, 24 do assert(ranked[index] == "toys:" .. names[index], table.concat(ranked, ",")) end
+        local recents = Names(search:Recents(24))
+        assert(recents == table.concat(names, "|"), recents)
     """,
 }
 
