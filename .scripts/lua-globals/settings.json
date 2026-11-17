@@ -1,0 +1,36 @@
+{
+  "roots": [
+    "LibOrbitColorPicker",
+    "LibOrbitGlow",
+    "LibOrbitSearch",
+    "LibOrbitUI"
+  ],
+  "exclude": {
+    "**/.scripts/**": "library test fixtures"
+  },
+  "ownedPrefixes": [],
+  "readGlobals": {
+    "embedded libraries": [
+      "LibStub"
+    ],
+    "guarded references neither client's source defines": [
+      "C_Heirloom.GetHeirloomItemIDs"
+    ]
+  },
+  "writableGlobals": {},
+  "missingOnRetail": [
+    "C_ActionBar.ShouldShowKeyring",
+    "C_SkillInfo.CollapseSkillHeader",
+    "C_SkillInfo.ExpandSkillHeader",
+    "C_SkillInfo.GetNumSkillLines",
+    "C_SkillInfo.GetSelectedSkill",
+    "C_SkillInfo.GetSkillLineInfo",
+    "C_SkillInfo.SetSelectedSkill",
+    "C_SpecializationInfo.GetCombatConfigIDForSpecGroup",
+    "C_Traits.GetGroupDisplayInfoByTreeID",
+    "Enum.ActionBarSet",
+    "Enum.ActionBarSet.Mkb",
+    "SkillsFrame"
+  ],
+  "missingOnForever": []
+}
