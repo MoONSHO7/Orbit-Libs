@@ -1,0 +1,6 @@
+#!/bin/sh
+# orbit-pre-push: lint-only
+# Checks Lua globals on each pushed commit (.scripts/check-lua-globals.py --pre-push). It runs no tests, so the coding
+# agent guard still asks before agent pushes. Install with `git config core.hooksPath .githooks`.
+PYTHON=$(command -v python || command -v python3)
+exec "$PYTHON" "$(git rev-parse --show-toplevel)/.scripts/check-lua-globals.py" --pre-push "$@"

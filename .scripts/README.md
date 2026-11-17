@@ -43,3 +43,4 @@ Work directories must be outside the checkout. Preparation never reads working-t
 
 ## References
 `../.github/workflows/README.md`, each subproject's `.pkgmeta`, and the workspace `orbit-libraries` skill.
+`lua-globals/README.md`: the Lua-globals gate (`check-lua-globals.py`, copied from Orbit) the lint-only pre-push runs.
