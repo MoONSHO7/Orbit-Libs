@@ -1,0 +1,10 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <Script file="LibOrbitBridge-1.0.lua"/>
+    <Script file="Questie\Retired.lua"/>
+    <Script file="Questie\Index.lua"/>
+    <Script file="Questie\Existence.lua"/>
+    <Script file="Questie\Availability.lua"/>
+    <Script file="Questie\Objectives.lua"/>
+    <Script file="Questie\Log.lua"/>
+    <Script file="Finalize.lua"/>
+</Ui>

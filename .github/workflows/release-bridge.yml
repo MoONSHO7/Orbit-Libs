@@ -1,0 +1,25 @@
+name: Release LibOrbitBridge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - LibOrbitBridge/LibOrbitBridge-1.0/**
+      - '!LibOrbitBridge/LibOrbitBridge-1.0/**/README.md'
+      - LibOrbitBridge/.pkgmeta
+      - LibOrbitBridge/LICENSE
+      - .github/workflows/release-bridge.yml
+      - .github/workflows/release-library.yml
+      - .scripts/release-library.py
+      - .gitattributes
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/release-library.yml
+    with:
+      library: LibOrbitBridge

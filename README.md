@@ -1,8 +1,8 @@
 # Orbit Libraries
 
 ## Description
-The shared source repository for LibOrbitUI, LibOrbitColorPicker, LibOrbitGlow and LibOrbitSearch. Each library retains
-its own runtime API, license and independently versioned release.
+The shared source repository for LibOrbitUI, LibOrbitColorPicker, LibOrbitGlow, LibOrbitSearch and LibOrbitBridge. Each
+library retains its own runtime API, license and independently versioned release.
 
 ## Purpose
 Maintain reusable addon services once, develop consumers through directory junctions, and distribute ordinary runtime
@@ -18,11 +18,12 @@ runtime folder through XML or Lua load manifests; the repository itself is not a
 | [LibOrbitColorPicker](LibOrbitColorPicker/README.md) | `LibOrbitColorPicker/LibOrbitColorPicker-1.0` | MIT | GitHub |
 | [LibOrbitGlow](LibOrbitGlow/README.md) | `LibOrbitGlow/LibOrbitGlow-1.0` | MIT | GitHub and CurseForge project 1586462 |
 | [LibOrbitSearch](LibOrbitSearch/README.md) | `LibOrbitSearch/LibOrbitSearch-1.0` | All Rights Reserved | GitHub |
+| [LibOrbitBridge](LibOrbitBridge/README.md) | `LibOrbitBridge/LibOrbitBridge-1.0` | All Rights Reserved | GitHub |
 
 The path-filtered workflows run on relevant changes pushed to `main` and share release tooling. Tags use
 `<Library>-<MAJOR.MINOR>`; versions continue from the previous repositories. The first monorepo releases are LibOrbitUI
-1.1, LibOrbitColorPicker 1.2 and LibOrbitGlow 1.8; LibOrbitSearch starts at 1.0. Package versions are independent of
-runtime API revisions.
+1.1, LibOrbitColorPicker 1.2 and LibOrbitGlow 1.8; LibOrbitSearch and LibOrbitBridge start at 1.0. Package versions
+are independent of runtime API revisions.
 
 Orbit, Portal, Compass, Events and Talents manually pin each verified library release commit and nested runtime path
 in `.pkgmeta`. BigWigs fetches and embeds those externals normally; automatic latest-release selection is deferred.
@@ -31,8 +32,8 @@ library update through a subsequent consumer addon release.
 
 ## Gotchas
 - LibOrbitUI exports a private API per embedding addon, sharing only its Edit Mode settings-window coordinator.
-  ColorPicker, Glow and Search use LibStub's shared versioned instances; product settings and services retain their own
-  runtime owners.
+  ColorPicker, Glow, Search and Bridge use LibStub's shared versioned instances; product settings and services retain
+  their own runtime owners.
 - Each project and runtime directory retains its own license. There is no repository-wide MIT grant for LibOrbitUI.
 - GitHub's repository-wide latest release and BigWigs' `tag: latest` can belong to another library. Verify the
   requested library's completed namespaced release before updating its full commit pin.

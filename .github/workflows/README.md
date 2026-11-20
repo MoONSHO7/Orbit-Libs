@@ -14,14 +14,15 @@ cannot launch a duplicate run. Manual runs on `main` use the same path and suppo
 
 `release-library.yml` checks out the source and the pinned BigWigs packager, then calls
 `../../.scripts/release-library.py`. Each library has its own concurrency group and tag namespace: `LibOrbitUI-X.Y`,
-`LibOrbitColorPicker-X.Y`, `LibOrbitGlow-X.Y` and `LibOrbitSearch-X.Y`. Numeric package versions continue from the
-standalone repositories; the first monorepo versions are 1.1, 1.2 and 1.8, and Search starts at 1.0.
+`LibOrbitColorPicker-X.Y`, `LibOrbitGlow-X.Y`, `LibOrbitSearch-X.Y` and `LibOrbitBridge-X.Y`. Numeric package versions
+continue from the standalone repositories; the first monorepo versions are 1.1, 1.2 and 1.8, and Search and Bridge
+start at 1.0.
 
 Only the selected committed subproject enters an isolated packaging checkout. Its local numeric tag supplies the
 TOC/package version; the public tag resolves to the original monorepo commit. The helper validates the ZIP before
-creating a GitHub draft and checks the published assets afterward. UI, ColorPicker and Search publish only on GitHub.
-Glow retains CurseForge project 1586462; its GitHub and CurseForge game versions come from the validated ZIP's TOC. The
-packager pin must retain Forever support (v2.6.0+). Glow uploads that ZIP before publishing its GitHub draft.
+creating a GitHub draft and checks the published assets afterward. UI, ColorPicker, Search and Bridge publish only on
+GitHub. Glow retains CurseForge project 1586462; its GitHub and CurseForge game versions come from the validated ZIP's
+TOC. The packager pin must retain Forever support (v2.6.0+). Glow uploads that ZIP before publishing its GitHub draft.
 
 ## Gotchas
 - `GITHUB_TOKEN` receives `contents: write` only in release jobs. No PAT is required. Only Glow receives
